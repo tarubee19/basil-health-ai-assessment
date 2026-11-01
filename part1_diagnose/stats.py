@@ -1,4 +1,4 @@
-"""Task 3 follow-up: subject-level statistics over results.jsonl (+ results_improvements.jsonl if present).
+"""Task 3: subject-level statistics over results.jsonl (+ results_improvements.jsonl if present).
 
 Unit of analysis = subject (n=10). Per config: per-subject accuracy (mean over seeds), mean, bootstrap 95% CI
 over subjects, Wilcoxon signed-rank and sign test vs 0.5 (one-sided, greater). The pooled-trial binomial is kept
@@ -20,7 +20,7 @@ from scipy.stats import binomtest, wilcoxon
 
 SUBJ = list(range(1, 11))
 EOG_FREE = ((8.0, 30.0), (1.0, 4.0))     # (band, crop)
-# results.jsonl rows used here: Task 3 CV probes (t3_) and the follow-up runs; Task 1 fix rows are skipped.
+# results.jsonl rows used here: Task 3 CV probes (t3_) and the EOG-free runs; Task 1 fix rows are skipped.
 FOLLOWUP_TAGS = ("t3_", "a1_", "a2_", "a3_", "c3_", "imp")
 rng = np.random.default_rng(0)
 
@@ -133,7 +133,7 @@ def main():
                 wa, wb = int((a > b).sum()), int((b > a).sum())
                 p = binomtest(wa, wa + wb, 0.5).pvalue if wa + wb else 1.0
                 comp.append(f"| {' | '.join(map(str, cfg))} | {names[i]} | {names[j]} | {wa} | {wb} | {p:.3g} |")
-    text = "# Subject-level statistics (Task 3 follow-up)\n\n" + head + "\n".join(rows) + "\n" + "\n".join(comp) + "\n"
+    text = "# Subject-level statistics (Task 3)\n\n" + head + "\n".join(rows) + "\n" + "\n".join(comp) + "\n"
     open("stats_table.md", "w", encoding="utf-8").write(text)
     print(text)
 
