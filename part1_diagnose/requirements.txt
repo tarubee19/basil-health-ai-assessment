@@ -4,3 +4,4 @@ scipy>=1.10
 scikit-learn>=1.3
 torch>=2.0
 matplotlib>=3.7
+pyriemann>=0.5
