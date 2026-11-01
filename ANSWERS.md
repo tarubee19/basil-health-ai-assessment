@@ -123,3 +123,66 @@ Probes, to tell eye movements apart from brain activity:
   response are. If frontal accuracy collapses, the frontal signal was cue-locked.
 - **`--fband 8 30`** removes the < 8 Hz band, where most EOG (saccade/blink) energy lies. If frontal drops but motor holds,
   the frontal signal was ocular.
+
+### Results
+
+Protocol: 5-fold subject CV, seeds 0/1/2, pooled over 450 test trials per seed; chance threshold 0.540. Rows are tagged
+`t3_*` in `results.jsonl`.
+
+| Run | Channels | Crop (s) | Band (Hz) | Pooled acc, seed 0 / 1 / 2 | Mean | Best | Worst | Seeds above chance |
+|---|---|---|---|---|---|---|---|---|
+| all | 64 | 0–4 | 1–40 | 0.584 / 0.540 / 0.573 | 0.566 | 0.584 | 0.540 | 3/3 |
+| **frontal** | Fp1 Fpz Fp2 AF7 AF3 AFz AF4 AF8 | 0–4 | 1–40 | 0.607 / 0.622 / 0.622 | **0.617** | 0.622 | 0.607 | 3/3 (p ≤ 3.5e-6) |
+| motor | 21 FC/C/CP | 0–4 | 1–40 | 0.602 / 0.602 / 0.616 | 0.607 | 0.616 | 0.602 | 3/3 |
+| frontal, cue second removed | frontal | **1–4** | 1–40 | 0.533 / 0.513 / 0.504 | 0.517 | 0.533 | 0.504 | 0/3 |
+| frontal, mu/beta only | frontal | 0–4 | **8–30** | 0.484 / 0.478 / 0.487 | 0.483 | 0.487 | 0.478 | 0/3 |
+| motor, mu/beta only | motor | 0–4 | **8–30** | 0.516 / 0.520 / 0.507 | 0.514 | 0.520 | 0.507 | 0/3 |
+
+Evidence plot `part1_diagnose/frontal_eog.png` (`eog_probe.py`, Fp1/Fp2 mean, 1–15 Hz, baseline −0.5…0 s):
+- From about 0.2 s after the cue, the frontal signal goes **positive for hands (target at the top)** and **negative for feet
+  (target at the bottom)**: +11.8 vs −15.9 µV at 0.2–0.5 s, and +8.0 vs −10.3 µV at 0.5–1 s.
+- Hands > feet in 0.2–1 s in **10/10 subjects** (sign test p ≈ 0.001).
+- The difference has gone by 1–2 s (−0.2 vs −2.4 µV).
+
+### Answer
+
+- **Which rule row applies:** the first one. The 8 electrodes nearest the eyes decode hands vs feet *better* than all
+  64 channels (0.617 vs 0.566, above chance in 3/3 seeds).
+- **Where that information sits:** entirely in the first second after the cue and below 8 Hz. Dropping 0–1 s
+  (0.517) or keeping only 8–30 Hz (0.483) puts frontal back at chance.
+- **Which non-brain signal explains it:** that time course and band are the signature of a **vertical eye movement (EOG)**
+  towards the target. The fists target is at the top and the feet target at the bottom, so the polarity flips with class
+  and matches the corneo-retinal dipole: looking up brings the positive cornea towards Fp1/Fp2. Blinks and frontalis EMG
+  also contribute.
+- **The worrying part:** the motor-strip control does not rescue a "brain" reading. Motor channels reach 0.607 at
+  1–40 Hz, but **0.514 (chance) when restricted to the mu/beta band** where the Task 2 ERD lives. So cross-subject, the
+  model's above-chance accuracy is explained by slow, cue-locked activity: EOG spreading back over the scalp (visible at
+  C3/Cz/C4 in the raw traces) and/or visual evoked potentials, not by motor-imagery ERD.
+- **Caveats:** this is mixed evidence, not proof that ERD is useless. The ERD is real in the trial averages (Task 2), but
+  it is small and subject-specific, and 6 training people may simply be too few for EEGNet to learn it across subjects.
+- **What I'd check next:**
+  - `motor --crop 1 4` and `all --fband 8 30 --crop 1 4`;
+  - within-subject decoding at 8–30 Hz;
+  - regressing the Fp channels out of the motor channels (or ICA-removing ocular components) before training.
+
+---
+
+## Part 1 — Task 4: short answers
+
+1. **58 % on 45 trials:**
+   - **Not convincingly above chance.** 26/45 = 0.578 with a one-sided binomial test against 0.5 gives p = 0.186; 29/45
+     (64.4 %, p = 0.036) is needed, and the 95 % CI for 26/45 is 0.42–0.72.
+   - **How to check properly:** run a label-permutation test with this exact pipeline. Retrain about 100+ times on
+     shuffled labels to get the empirical null distribution, which also accounts for class imbalance and dependence
+     between trials.
+2. **The depthwise layer `Conv2d(F1, F1*D, (n_ch, 1), groups=F1)`:** each of the F1 temporal filters is effectively a
+   frequency band. For each one, the layer learns D **spatial filters**, which are weightings across all electrodes,
+   applied with no mixing between bands. It works like a per-band CSP or beamformer: it learns which electrodes to add or
+   subtract to expose a source's band-power pattern, for example contrasting C3/C4 against Cz for mu ERD, or, as Task 3
+   shows, contrasting Fp electrodes to pick up a vertical EOG dipole.
+3. **One change that would stop the model using the eye signal:**
+   - **Experiment:** make the cue identical in location for both classes, for example a central symbol or an auditory cue,
+     so gaze no longer depends on the class.
+   - **Analysis:** drop the first ~1 s after the cue **and** band-pass to 8–30 Hz, and/or remove ocular components (ICA or
+     regression on Fp channels).
+   - Task 3 showed each of these alone already removes the frontal shortcut (frontal → 0.517 and 0.483).
