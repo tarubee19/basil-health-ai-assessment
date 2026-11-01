@@ -2,28 +2,27 @@
 
 Can self-attention beat a conv net on tiny EEG data (imagined both fists vs both feet, cross-subject) if it gets one
 EEG-specific inductive bias? My bet: attend across **64 electrode tokens** (log band-power, located by 3-D scalp geometry)
-instead of 481 timesteps. The full write-up is in [`../ANSWERS.md`](../ANSWERS.md) (Part 2). The notes below were written
-during the exam.
+instead of 481 timesteps. The full write-up is in [`../ANSWERS.md`](../ANSWERS.md) (Part 2).
 
 | File | What it is |
 |------|------------|
-| `main.py` | `YourModel` (electrode tokens + scalp geometry), the starter `PatchTransformer`, and the exam-day comparison harness |
+| `main.py` | `YourModel` (electrode tokens + scalp geometry), the starter `PatchTransformer`, and the fixed-split comparison harness |
 | `models.py`, `data.py`, `train.py` | Supplied EEGNet, vanilla transformer, loader (7–30 Hz, 0–3 s) and training loop; unchanged |
-| `cv.py`, `variants.py`, `analysis.py` | Follow-up: 5-fold subject rotation, the no-attention control, attention vs occlusion |
-| `results.jsonl` | One row per run (exam-day rows first, then the subject-rotation rows) |
-| `figure.png`, `figure_tsne.png`, `figure_cv.png` | Exam-day figure, t-SNE, and the subject-rotation figure |
+| `cv.py`, `variants.py`, `analysis.py` | 5-fold subject rotation, the no-attention control, attention vs occlusion |
+| `results.jsonl` | One row per run (fixed-split rows first, then the subject-rotation rows) |
+| `figure.png`, `figure_tsne.png`, `figure_cv.png` | Fixed-split figure, t-SNE, and the subject-rotation figure |
 
 ```bash
 pip install -r requirements.txt
-python -u main.py --epochs 20 --seeds 0 1 2    # reproduces the exam-day numbers (default --epochs is 40)
+python -u main.py --epochs 20 --seeds 0 1 2    # reproduces the fixed-split numbers (default --epochs is 40)
 ```
 
-> **Update after rotation:** with all 10 subjects rotated, every neural model is at chance, and the rim attention described
-> under "Figure" below did not replicate. See "Follow-up: subject rotation" in `ANSWERS.md`.
+> **Subject rotation:** with all 10 subjects rotated, every neural model is at chance, and the rim attention described
+> under "Figure" below did not replicate. See "Subject rotation (all 10 subjects)" in `ANSWERS.md`.
 
 ---
 
-## Write-up (exam day)
+## Write-up (fixed split, test subjects 9–10)
 
 **Hypothesis:** Fists-vs-feet is encoded in *where* mu/beta power drops (lateral hand areas vs the medial vertex, an
 anterior–posterior/medial contrast), not in *when* individual samples occur; per-timestep attention compares random-phase
@@ -50,7 +49,7 @@ Hypothesis committed in `07411fc`, before any model code (`0c465b7`).
   embedding (`learned`) tests whether *geometry* matters, or just having electrode tokens.
 
 **Setup / deviations:** same split (train 1–8, test 9–10, n_test = 90), preprocessing, harness, lr and weight decay for
-every model; seeds 0, 1, 2 for all. **Time-limit deviation:** all models were trained for **20 epochs**, not the starter
+every model; seeds 0, 1, 2 for all. All models were trained for **20 epochs**, not the starter
 default of 40 (same for every model). `train_model`'s "best" is the max of the test-accuracy curve, i.e. chosen on the
 test set (Part 1's checkpoint bug), so the headline is **final-epoch** accuracy, with peak alongside. On 90 trials the
 SE at 50 % is 5.3 pts and one-sided p < .05 needs ≥ 60 % (54/90), so model differences under ~7–10 pts are not conclusive.
@@ -70,10 +69,10 @@ Reproduce with `python -u main.py --epochs 20 --seeds 0 1 2`; every run is appen
 | VanillaTransformer | 135,746 | 0,1,2 | 0.533 / 0.522 / 0.533 | 0.533 | 0.522 | 0.530 ± 0.005 | 0.552 |
 | EEGNet-P1 (k80,p.5) | 2,738 | 0,1,2 | 0.533 / 0.411 / 0.467 | 0.533 | 0.411 | 0.470 ± 0.050 | 0.537 |
 <!-- /table -->
-Follow-up with all 10 subjects rotated: see "Follow-up: subject rotation" in the root `ANSWERS.md`. To regenerate `figure_cv.png`: `python cv.py --models geom eegnet --save-models geom eegnet --out <scratch file>`, then `python analysis.py attn`, then `python analysis.py figure`.
+All 10 subjects rotated: see "Subject rotation (all 10 subjects)" in the root `ANSWERS.md`. To regenerate `figure_cv.png`: `python cv.py --models geom eegnet --save-models geom eegnet --out <scratch file>`, then `python analysis.py attn`, then `python analysis.py figure`.
 
 **Run provenance:** VanillaTransformer and EEGNet-P1 (the Part 1 config, `kern=80, p=0.5`, set via constructor
-arguments; `models.py` unchanged) were run after the time limit with `--only vanilla` and `--only eegnet_p1`: same
+arguments; `models.py` unchanged) were run separately with `--only vanilla` and `--only eegnet_p1`: same
 harness, seeds and 20 epochs. Vanilla took 310–1073 s per seed because the CPU was shared with Part 1.
 **Reproducibility:** `--figure-only` retrained YourModel (geom) seed 0 twice; both runs gave final 0.478 and peak 0.567,
 identical to `results.jsonl`, because CPU training is deterministic here.
