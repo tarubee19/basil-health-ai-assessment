@@ -17,7 +17,7 @@
 3. **Reproducibility check:** not done. Rerun everything into a fresh log and compare with `results.jsonl`:
    `python -u main.py --epochs 20 --log results_repro.jsonl`.
 4. **Starter-file check:** `git diff 86e1619 -- part2_transformer/models.py part2_transformer/data.py part2_transformer/train.py`
-   should be empty.
+   **checked at 15:22: empty**, so the supplied files are untouched.
 5. **Root `ANSWERS.md` Part 2 merge:** waiting for the Part 1 session to confirm it has finished. Then copy the README
    write-up and commit `docs: ANSWERS.md Part 2`.
-6. **Push:** the repo has no git remote configured. Add one, then `git push`.
+6. **Push:** pushed to `origin` at the end of the session.
