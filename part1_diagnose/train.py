@@ -8,7 +8,7 @@ import json
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.model_selection import GroupKFold
+from sklearn.model_selection import GroupKFold, StratifiedKFold, train_test_split
 
 from data import build_dataset, SUBJECTS, CROP, L_FREQ, H_FREQ
 from model import EEGNet, count_params
@@ -50,7 +50,6 @@ def mean_loss(model, X, y, loss_fn, bs=256):
 
 def run_split(X, y, groups, tr_subj, va_subj, te_subj, args):
     """Train on tr_subj, select on va_subj, evaluate once on te_subj. Returns a result row."""
-    set_seed(args.seed)
     # FIX (A): split by SUBJECT, not trial. Random trial splits put every person in both
     # train and test, so the model could score by recognising people it had seen -> inflated accuracy.
     assert not (tr_subj & te_subj) and not (tr_subj & va_subj) and not (va_subj & te_subj)
@@ -60,7 +59,12 @@ def run_split(X, y, groups, tr_subj, va_subj, te_subj, args):
     te = np.flatnonzero(np.isin(groups, list(te_subj)))
     print(f"train subjects {sorted(tr_subj)}  val subjects {sorted(va_subj)}  "
           f"test subjects {sorted(te_subj)}")
+    return fit_eval(X, y, groups, tr, va, te, args)
 
+
+def fit_eval(X, y, groups, tr, va, te, args):
+    """Fit on trial indices tr, select on va, evaluate once on te. Returns a result row."""
+    set_seed(args.seed)
     if args.regress_frontal:
         # Remove the EOG proxy: least-squares fit of every non-frontal channel on the 8 frontal
         # channels, weights estimated on TRAINING trials only, then subtract and drop frontal.
@@ -134,8 +138,9 @@ def main():
     # Task 3 probes: --crop 1 4 drops the cue/saccade second; --fband 8 30 removes slow EOG.
     ap.add_argument("--crop", type=float, nargs=2, default=list(CROP), metavar=("T0", "T1"))
     ap.add_argument("--fband", type=float, nargs=2, default=[L_FREQ, H_FREQ], metavar=("LO", "HI"))
-    ap.add_argument("--split", choices=["fixed", "cv"], default="fixed",
-                    help="fixed: --test/--val-subjects; cv: 5-fold GroupKFold over subjects")
+    ap.add_argument("--split", choices=["fixed", "cv", "within"], default="fixed",
+                    help="fixed: --test/--val-subjects; cv: 5-fold GroupKFold over subjects; "
+                         "within: per-subject 5-fold CV over that subject's own trials")
     ap.add_argument("--test-subjects", type=int, nargs="+", default=[9, 10])
     ap.add_argument("--val-subjects", type=int, nargs="+", default=[7, 8])
     ap.add_argument("--tag", default="", help="label stored in results.jsonl")
@@ -161,6 +166,27 @@ def main():
     if args.split == "fixed":
         te_subj, va_subj = set(args.test_subjects), set(args.val_subjects)
         log(run_split(X, y, groups, all_subj - te_subj - va_subj, va_subj, te_subj, args), args.out)
+        return
+
+    if args.split == "within":
+        # Within-subject decoding: for each person, stratified 5-fold CV over their own 45
+        # trials; 20% of each training fold (stratified) is validation for checkpoint selection.
+        rows = []
+        for s in sorted(all_subj):
+            idx = np.flatnonzero(groups == s)
+            skf = StratifiedKFold(n_splits=5, shuffle=True, random_state=args.seed)
+            for k, (a, b) in enumerate(skf.split(idx, y[idx])):
+                tr, va = train_test_split(idx[a], test_size=0.2, stratify=y[idx[a]],
+                                          random_state=args.seed)
+                row = fit_eval(X, y, groups, tr, va, idx[b], args)
+                row.update(split="within_fold", subject=s, fold=k)
+                log(row, args.out); rows.append(row)
+        correct = sum(r["test_acc"] * r["n_test"] for r in rows); n = sum(r["n_test"] for r in rows)
+        per = {s: float(np.mean([r["test_acc"] for r in rows if r["subject"] == s])) for s in sorted(all_subj)}
+        log(dict(tag=args.tag, channels=args.channels, crop=args.crop, fband=args.fband,
+                 regress_frontal=args.regress_frontal, seed=args.seed, split="within",
+                 test_acc_pooled=correct / n, n_test=n, test_acc_per_subject=per,
+                 test_acc_last_mean=float(np.mean([r["test_acc_last"] for r in rows]))), args.out)
         return
 
     # Subject-level CV: each fold tests 2 subjects; the next fold's test subjects
