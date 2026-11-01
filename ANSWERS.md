@@ -99,3 +99,27 @@ functions.
 - **Beta rebound:** after the trial ends (4–5 s, task offset at 4.1 s) for hands: C3 +9.6 %, C4 +11.8 %.
 - **Baseline sanity check:** the pre-cue window fluctuates ±10–20 % around 0 with no trend; this level of noise comes from
   ~225 trials per condition.
+
+---
+
+## Part 1 — Task 3: what is the model using?
+
+### Decision rule (written and committed before running any channel-subset model)
+
+Protocol for every row:
+- 5-fold subject-level CV (`--split cv`), seeds 0, 1, 2;
+- the per-seed pooled accuracy is over all 450 test trials;
+- "above chance" means ≥ 0.540 (one-sided binomial p < .05, n = 450);
+- "close to `all`" means within 5 points of `all` (pooled 0.566, mean of 3 seeds).
+
+| Result under the fixed protocol | Reading |
+|---|---|
+| `frontal` clearly above chance in all 3 seeds and close to `all` | the model can solve the task from eye-region signals, so the cue/eye confound is a viable shortcut |
+| `frontal` near chance, `motor` close to `all` | evidence that the model uses motor cortex |
+| anything in between | report as mixed, give the numbers, don't over-claim |
+
+Probes, to tell eye movements apart from brain activity:
+- **`frontal --crop 1 4`** removes the first second after the cue, where the saccade to the target and the visual evoked
+  response are. If frontal accuracy collapses, the frontal signal was cue-locked.
+- **`--fband 8 30`** removes the < 8 Hz band, where most EOG (saccade/blink) energy lies. If frontal drops but motor holds,
+  the frontal signal was ocular.
