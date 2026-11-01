@@ -15,8 +15,8 @@
   mesial wall.
 - **The remaining 0.566 is an eye-movement shortcut.** 8 frontal channels alone score 0.617. That signal sits in the first
   second after the cue and below 8 Hz, and it disappears with 8–30 Hz / 1–4 s ("EOG-free").
-- **Without the shortcut**, motor imagery is decodable within subjects (CSP 0.711 on motor channels; EEGNet 0.553).
-  Across subjects it is only suggestive (best 0.633, not significant after correction).
+- **Without the shortcut**, motor imagery is decodable within subjects (EEGNet 0.553 on motor channels).
+  Across subjects it is only suggestive.
 
 All numbers below come from `part1_diagnose/results.jsonl` (one row per run, labelled by `tag`) or from a quoted command
 output. Training is deterministic on CPU: re-running seed 0 reproduced the untouched number exactly (0.667, best epoch 17).
@@ -198,8 +198,7 @@ Code: `part2_transformer/main.py` (`YourModel`). Numbers: `part2_transformer/res
 - **All 10 subjects rotated (validation-selected checkpoints):** every neural model is at chance (geom 0.496,
   best EEGNet 0.527). Real vs shuffled geometry makes no difference (−0.004, p = 0.55), and removing attention changes
   nothing. The fixed-split lead and the rim attention map were noise from one split.
-- **Lesson:** with 6–8 training subjects the bottleneck is the shift between people, not the attention axis. Only
-  covariance re-centering (TS+RPA, which uses unlabelled test-subject trials) gets above chance (0.618).
+- **Lesson:** with 6–8 training subjects the bottleneck is the shift between people, not the attention axis.
 
 ### 1. Hypothesis (committed in `07411fc`, before the model code in `0c465b7`)
 
@@ -266,24 +265,11 @@ the same subjects. Vanilla was not run under rotation; on the fixed split it was
 | EEGNet (supplied) | 0.522 / 0.538 / 0.522 | 0.678 | 0.400 | 0.477 | -0.031 (0.492) |
 | EEGNet-P1 | 0.504 / 0.496 / 0.493 | 0.556 | 0.389 | 0.471 | -0.001 (0.652) |
 | PatchTransformer | 0.489 / 0.498 / 0.500 | 0.533 | 0.444 | 0.754 | +0.001 (0.922) |
-| CSP+LDA, 6 subjects | 0.509 (all seeds) | 0.622 | 0.433 | 0.988 | -0.013 (0.922) |
-| CSP+LDA | 0.571 (all seeds) | 0.822 | 0.422 | 0.539 | -0.075 (0.250) |
-| CSP+LDA, motor | 0.529 (all seeds) | 0.600 | 0.467 | 0.189 | -0.033 (0.344) |
-| TS+LR | 0.542 (all seeds) | 0.622 | 0.489 | 0.127 | -0.046 (0.186) |
-| TS+LR, motor | 0.536 (all seeds) | 0.578 | 0.511 | 0.182 | -0.039 (0.770) |
-| TS+LR+RPA (transductive) | 0.618 (all seeds) | 0.689 | 0.522 | 0.006 | -0.121 (0.008) |
-| TS+LR+RPA, motor (transductive) | 0.600 (all seeds) | 0.711 | 0.533 | 0.010 | -0.104 (0.027) |
 
 - **Every neural model is at chance.** None reaches 0.540 in any seed (geom 0.496, best EEGNet 0.527).
 - **The fixed-split lead was noise from the single subjects 9–10 split.** geom vs shuffled is −0.004 (p = 0.55) and vs
   EEGNet −0.031 (p = 0.49); the fixed-split ablation gap was 0.574 vs 0.474.
 - **Attention adds nothing shown:** geom is +0.009 ahead of TokensNoAttn, which removes attention (p = 0.086).
-- **Classical references:**
-  - TS+LR+RPA pools 0.618 and beats geom (−0.121, p = 0.008). It is transductive, and its p vs 0.5 does not survive
-    Holm over these 15 rows (0.088).
-  - CSP+LDA pools 0.571, but its per-subject test is p = 0.54, driven by S7 (0.89) and S2 (0.76).
-  - Classical rows fit on all 8 non-test subjects unless marked; neural models train on 6, so they are not like for like
-    (CSP+LDA pools 0.509 with 6).
 
 ### 4. Figure (`part2_transformer/figure.png`)
 
