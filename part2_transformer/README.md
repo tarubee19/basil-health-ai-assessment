@@ -106,9 +106,14 @@ Reproduce with `python -u main.py --epochs 20 --seeds 0 1 2`; every run is appen
 | YourModel (shuffled) | 76,930 | 0,1,2 | 0.456 / 0.544 / 0.422 | 0.544 | 0.422 | 0.474 ± 0.052 | 0.526 |
 | YourModel (learned) | 78,786 | 0,1,2 | 0.433 / 0.556 / 0.533 | 0.556 | 0.433 | 0.507 ± 0.053 | 0.552 |
 | EEGNet (supplied) | 2,610 | 0,1,2 | 0.522 / 0.589 / 0.467 | 0.589 | 0.467 | 0.526 ± 0.050 | 0.541 |
+| PatchTransformer | 232,898 | 0,1,2 | 0.511 / 0.489 / 0.511 | 0.511 | 0.489 | 0.504 ± 0.010 | 0.593 |
 <!-- /table -->
 
-MISSING_RUNS
+**Missing runs:** **VanillaTransformer, seeds 0/1/2: none finished**, and **EEGNet-P1 (Part 1 config `kern=80, p=0.5`):
+not run**. The reason is CPU contention with the concurrent Part 1 job. The patch model went from ~10 s to 143–427 s per
+seed, and vanilla (≈ 20 s/epoch on a free CPU) was stopped at the time limit before its first seed ended. So this table
+has no vanilla row: the "beat the vanilla transformer" half of the hypothesis is **untested**. Reproduce the missing rows
+with `python -u main.py --epochs 20 --only vanilla eegnet_p1`.
 
 **Reading:**
 - **No conclusive win.** YourModel (geom) has the highest mean final accuracy (0.574) and is the only model with seeds at
@@ -117,7 +122,9 @@ MISSING_RUNS
   Part 1 (0.522 on the same subjects 9–10).
 - **Seed variance did not drop.** geom std 0.070 vs EEGNet 0.050. "Stability" was part of the hypothesis and is not
   supported.
-- **Peak flatters every model** (by 1–8 pts on the means), which is why final is the headline.
+- **Patch model:** the lowest seed variance (std 0.010) but at chance (mean 0.504). It also has the largest peak-vs-final
+  gap (8.9 pts), so its test curve fluctuates during training even though it ends at chance.
+- **Peak flatters every model** (by 1.5–8.9 pts on the means), which is why final is the headline.
 
 **Figure:** `figure.png`: (a) final accuracy per seed for every model; (b, c) the geom seed-0 model's last-layer
 CLS→electrode attention for fists and feet. Attention is **not** central: it sits on the scalp rim. For fists the top
