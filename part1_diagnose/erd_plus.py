@@ -1,4 +1,4 @@
-"""Task 2 follow-up: ERD analysis with subject-level CIs (erd.py is left unchanged; its functions are reused).
+"""Task 2: ERD analysis with subject-level CIs (erd.py is left unchanged; its functions are reused).
 
 - per-subject ERD curves, mean ± bootstrap 95% CI over SUBJECTS, mu and beta, C3/Cz/C4
 - the same with a small Laplacian (centre minus mean of 4 neighbours)
