@@ -1,5 +1,7 @@
 # ANSWERS — EEG × Deep Learning live exam
 
+*Task 3 follow-up checks and two wording fixes added after the timed session (commits `11574e9`, `7713ee1`).*
+
 All numbers below come from `part1_diagnose/results.jsonl` (one row per run, labelled by `tag`) or from a quoted command
 output. Training is deterministic on CPU: re-running seed 0 reproduced the untouched number exactly (0.667, best epoch 17).
 
@@ -92,6 +94,9 @@ functions.
   - the reference is unknown and there is no spatial filter (Laplacian/CSP), so Cz is blurred by its neighbours;
   - averaging subjects with different mu peak frequencies flattens the curves further.
   Beta was not clearer for feet here (Cz −6.4 % feet vs −6.0 % hands).
+- *Follow-up (`erd_plus.py`, `erd_plus_mu.png`):* a small Laplacian makes feet mu ERD at Cz weaker, not sharper (−4.6 % →
+  +2.8 %, 7/10 → 4/10 subjects negative). So the "blurred by its neighbours" bullet is not supported, and the deep, mesial,
+  tangential source is the better explanation: a Laplacian favours superficial radial sources.
 
 **What else the plots show:**
 - **Cue response, not motor:** a sharp +50 to +85 % mu power peak at about 0.25 s at all three channels and for both
@@ -158,12 +163,33 @@ Evidence plot `part1_diagnose/frontal_eog.png` (`eog_probe.py`, Fp1/Fp2 mean, 1�
   1–40 Hz, but **0.514 (chance) when restricted to the mu/beta band** where the Task 2 ERD lives. So cross-subject, the
   model's above-chance accuracy is explained by slow, cue-locked activity: EOG spreading back over the scalp (visible at
   C3/Cz/C4 in the raw traces) and/or visual evoked potentials, not by motor-imagery ERD.
-- **Caveats:** this is mixed evidence, not proof that ERD is useless. The ERD is real in the trial averages (Task 2), but
-  it is small and subject-specific, and 6 training people may simply be too few for EEGNet to learn it across subjects.
-- **What I'd check next:**
-  - `motor --crop 1 4` and `all --fband 8 30 --crop 1 4`;
-  - within-subject decoding at 8–30 Hz;
-  - regressing the Fp channels out of the motor channels (or ICA-removing ocular components) before training.
+
+### Follow-up checks (after the timed session)
+
+Setting: "EOG-free" = 8–30 Hz **and** crop 1–4 s; same subject folds as `--split cv`. Statistics are per subject (n = 10):
+mean, one-sided Wilcoxon p vs 0.5, and the number of subjects above 0.5. Classical baselines are in `classical.py`
+(CSP+LDA, tangent space + logistic regression), statistics in `stats.py` (`stats_table.md`, `accuracy_grid.png`), and
+the rows in `results.jsonl` (tags `a1_*`, `a2_*`, `a3_*`, `c3_*`).
+
+| EOG-free | CSP+LDA | TS+LR | EEGNet (seeds 0–2) |
+|---|---|---|---|
+| within-subject, motor | **0.711** (p = 0.018, 7/10) | 0.711 (p = 0.026, 7/10) | 0.553 (p = 0.19, 5/10) |
+| within-subject, all 64 | 0.749 (p = 0.003, 9/10) | 0.744 (p = 0.001, 10/10) | 0.542 (p = 0.10, 6/10) |
+| within-subject, frontal | 0.571 (p = 0.030, 7/10) | 0.527 (p = 0.33) | – |
+| cross-subject, motor | 0.573 (p = 0.24, 5/10) | 0.553 (p = 0.09, 7/10) | 0.511 (p = 0.40) |
+| cross-subject, all 64 | 0.547 (p = 0.27) | 0.600 (p = 0.014, 7/10); with re-centering 0.633 (p = 0.005, 9/10) | 0.513 (p = 0.31) |
+| cross-subject, frontal | 0.504 (p = 0.61) | 0.476 (p = 0.99) | – |
+
+- **Within subjects, a motor-imagery signal is decodable without the eye shortcut:** CSP motor 0.711 vs EEGNet 0.553.
+  CSP and TS each beat EEGNet in 9/10 subjects (sign test p = 0.021, all channels).
+- **Across subjects, transfer is suggestive only.** The best result is TS with per-subject re-centering (RPA), all channels:
+  0.633, 9/10 subjects. RPA uses the test subject's unlabelled trials. Its p does not survive Holm correction over the
+  25 EOG-free cross-subject configs tried (Holm p = 0.12).
+- **Frontal channels** are at chance cross-subject but still give 0.571 within-subject. So the motor result is "mostly
+  sensorimotor": some non-motor information may survive the filter.
+- **Conclusion.** The eye signal was the shortcut behind the submitted cross-subject accuracy. Motor-imagery ERD is real and
+  decodable within subjects, where simple covariance models reach ~0.71. EEGNet is data-hungry and does not learn it from
+  ~36 training trials per subject (within) or 6 training people (across).
 
 ---
 
@@ -175,14 +201,16 @@ Evidence plot `part1_diagnose/frontal_eog.png` (`eog_probe.py`, Fp1/Fp2 mean, 1�
    - **How to check properly:** run a label-permutation test with this exact pipeline. Retrain about 100+ times on
      shuffled labels to get the empirical null distribution, which also accounts for class imbalance and dependence
      between trials.
-2. **The depthwise layer `Conv2d(F1, F1*D, (n_ch, 1), groups=F1)`:** each of the F1 temporal filters is effectively a
-   frequency band. For each one, the layer learns D **spatial filters**, which are weightings across all electrodes,
+2. **The depthwise layer `Conv2d(F1, F1*D, (n_ch, 1), groups=F1)`:** each of the F1 temporal filters is
+   frequency-selective. For each one, the layer learns D **spatial filters**, which are weightings across all electrodes,
    applied with no mixing between bands. It works like a per-band CSP or beamformer: it learns which electrodes to add or
    subtract to expose a source's band-power pattern, for example contrasting C3/C4 against Cz for mu ERD, or, as Task 3
    shows, contrasting Fp electrodes to pick up a vertical EOG dipole.
 3. **One change that would stop the model using the eye signal:**
    - **Experiment:** make the cue identical in location for both classes, for example a central symbol or an auditory cue,
-     so gaze no longer depends on the class.
+     so gaze no longer depends on the class. Alternatives:
+     - counterbalance or randomise the cue position across blocks;
+     - use a delayed cue and analyse only after the cue has disappeared.
    - **Analysis:** drop the first ~1 s after the cue **and** band-pass to 8–30 Hz, and/or remove ocular components (ICA or
      regression on Fp channels).
    - Task 3 showed each of these alone already removes the frontal shortcut (frontal → 0.517 and 0.483).
@@ -204,6 +232,9 @@ Evidence plot `part1_diagnose/frontal_eog.png` (`eog_probe.py`, Fp1/Fp2 mean, 1�
 - Even the fully fixed pipeline's above-chance accuracy (CV 0.566) is explained by cue-locked, low-frequency activity:
   8 frontal channels alone get 0.617, and both frontal and motor fall to chance at 8–30 Hz.
 - A trustworthy *evaluation* is not the same as a model that uses *motor imagery*.
+- Follow-up: with the eye signal removed, motor imagery decodes **within** subjects (CSP motor 0.711, 7/10) but not
+  reliably **across** them (best 0.633, Holm p = 0.12). Frontal still decodes within subjects (0.571), so residual
+  non-motor information is not fully ruled out.
 - The fixed {9, 10} test split (90 trials, 0.522, p = 0.38) is too small to read a single number from; use the CV numbers.
 
 ---
