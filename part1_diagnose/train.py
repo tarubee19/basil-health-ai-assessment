@@ -61,6 +61,14 @@ def run_split(X, y, groups, tr_subj, va_subj, te_subj, args):
     print(f"train subjects {sorted(tr_subj)}  val subjects {sorted(va_subj)}  "
           f"test subjects {sorted(te_subj)}")
 
+    if args.regress_frontal:
+        # Remove the EOG proxy: least-squares fit of every non-frontal channel on the 8 frontal
+        # channels, weights estimated on TRAINING trials only, then subtract and drop frontal.
+        F, O = args.frontal_idx, [i for i in range(X.shape[1]) if i not in args.frontal_idx]
+        flat = lambda Z: Z.transpose(0, 2, 1).reshape(-1, Z.shape[1])
+        B = np.linalg.lstsq(flat(X[tr][:, F]), flat(X[tr][:, O]), rcond=None)[0]   # (8, n_other)
+        X = (X[:, O] - np.einsum("nft,fo->not", X[:, F], B)).astype(np.float32)
+
     # FIX (C): z-score with TRAINING-subject statistics only (starter used all trials, test
     # included, before the split -> test scale leaked into inputs, small inflation).
     # Per-subject z-scoring is a legitimate alternative, but it uses the test subject's
@@ -101,6 +109,7 @@ def run_split(X, y, groups, tr_subj, va_subj, te_subj, args):
     per_subject = {int(s): evaluate(model, X[te][groups[te] == s], y[te][groups[te] == s])
                    for s in np.unique(groups[te])}
     return dict(tag=args.tag, channels=args.channels, crop=args.crop, fband=args.fband,
+                regress_frontal=args.regress_frontal,
                 seed=args.seed, best_epoch=best_ep,
                 test_acc=evaluate(model, X[te], y[te]), n_test=len(te),
                 test_acc_last=test_acc_last,
@@ -131,10 +140,15 @@ def main():
     ap.add_argument("--val-subjects", type=int, nargs="+", default=[7, 8])
     ap.add_argument("--tag", default="", help="label stored in results.jsonl")
     ap.add_argument("--out", default="results.jsonl", help="results file to append to")
+    ap.add_argument("--regress-frontal", action="store_true",
+                    help="regress frontal (EOG-proxy) channels out of the rest, then drop them")
     args = ap.parse_args()
     set_seed(args.seed)
 
     X, y, groups, ch_names = build_dataset(args.subjects, tuple(args.crop), tuple(args.fband))
+    if args.regress_frontal:
+        assert args.channels == "all", "--regress-frontal needs the full montage"
+        args.frontal_idx = [ch_names.index(c) for c in CHANNEL_GROUPS["frontal"]]
     picks = CHANNEL_GROUPS[args.channels]
     if picks is not None:
         if not picks:
@@ -162,6 +176,7 @@ def main():
     accs = np.array([r["test_acc"] for r in rows])
     n = np.array([r["n_test"] for r in rows])
     log(dict(tag=args.tag, channels=args.channels, crop=args.crop, fband=args.fband,
+             regress_frontal=args.regress_frontal,
              seed=args.seed, split="cv",
              fold_test_acc=accs.tolist(), test_acc_mean=accs.mean(), test_acc_sd=accs.std(ddof=1),
              test_acc_pooled=float((accs * n).sum() / n.sum()), n_test=int(n.sum()),
