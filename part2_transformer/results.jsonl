@@ -7,3 +7,6 @@
 {"model": "YourModel (learned)", "pe": "learned", "seed": 0, "final_acc": 0.4333, "peak_acc": 0.5556, "params": 78786, "epochs": 20}
 {"model": "YourModel (learned)", "pe": "learned", "seed": 1, "final_acc": 0.5556, "peak_acc": 0.5556, "params": 78786, "epochs": 20}
 {"model": "YourModel (learned)", "pe": "learned", "seed": 2, "final_acc": 0.5333, "peak_acc": 0.5444, "params": 78786, "epochs": 20}
+{"model": "EEGNet (supplied)", "pe": "-", "seed": 0, "final_acc": 0.5222, "peak_acc": 0.5222, "params": 2610, "epochs": 20}
+{"model": "EEGNet (supplied)", "pe": "-", "seed": 1, "final_acc": 0.5889, "peak_acc": 0.5889, "params": 2610, "epochs": 20}
+{"model": "EEGNet (supplied)", "pe": "-", "seed": 2, "final_acc": 0.4667, "peak_acc": 0.5111, "params": 2610, "epochs": 20}
