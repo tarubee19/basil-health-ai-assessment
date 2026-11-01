@@ -46,8 +46,8 @@ def mean_loss(model, X, y, loss_fn, bs=256):
 def run_split(X, y, groups, tr_subj, va_subj, te_subj, args):
     """Train on tr_subj, select on va_subj, evaluate once on te_subj. Returns a result row."""
     set_seed(args.seed)
-    # Subject-independent evaluation: whole subjects are held out for test and
-    # validation, so no person appears in more than one set.
+    # FIX (A): split by SUBJECT, not trial. Random trial splits put every person in both
+    # train and test, so the model could score by recognising people it had seen -> inflated accuracy.
     assert not (tr_subj & te_subj) and not (tr_subj & va_subj) and not (va_subj & te_subj)
     assert tr_subj and va_subj and te_subj
     tr = np.flatnonzero(np.isin(groups, list(tr_subj)))
@@ -56,9 +56,10 @@ def run_split(X, y, groups, tr_subj, va_subj, te_subj, args):
     print(f"train subjects {sorted(tr_subj)}  val subjects {sorted(va_subj)}  "
           f"test subjects {sorted(te_subj)}")
 
-    # Per-channel z-scoring with training-set statistics only, applied to all sets.
-    # (Per-subject z-scoring is a legitimate alternative, but it uses the test
-    # subject's unlabelled statistics, so it must be declared as such.)
+    # FIX (C): z-score with TRAINING-subject statistics only (starter used all trials, test
+    # included, before the split -> test scale leaked into inputs, small inflation).
+    # Per-subject z-scoring is a legitimate alternative, but it uses the test subject's
+    # unlabelled statistics, so it must be declared as such.
     mean = X[tr].mean(axis=(0, 2), keepdims=True)
     std = X[tr].std(axis=(0, 2), keepdims=True) + 1e-6
     X = ((X - mean) / std).astype(np.float32)
@@ -71,6 +72,8 @@ def run_split(X, y, groups, tr_subj, va_subj, te_subj, args):
     loss_fn = nn.CrossEntropyLoss()
     rng = np.random.default_rng(args.seed)
 
+    # FIX (B): select the checkpoint on VALIDATION-subject loss. The starter kept argmax of
+    # test accuracy over 30 epochs (max of a noisy curve) -> optimistic, inflated number.
     best_val_loss, best_state, best_ep = float("inf"), None, -1
     for ep in range(args.epochs):
         model.train()

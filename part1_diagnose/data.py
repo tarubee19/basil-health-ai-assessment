@@ -11,7 +11,8 @@ from mne.datasets import eegbci
 MONTAGE = ("colin27_1005" if "colin27_1005" in mne.channels.get_builtin_montages()
            else "standard_1005")
 
-# Runs containing IMAGINED both-fists vs both-feet trials (5, 9, 13 are the executed ones).
+# FIX (D): runs 6/10/14 are IMAGINED fists vs feet; the starter's 5/9/13 are EXECUTED
+# movement (PhysioNet run table), whose stronger ERD + EMG/movement artefacts inflated accuracy.
 RUNS = [6, 10, 14]
 SUBJECTS = list(range(1, 11))
 
@@ -44,8 +45,9 @@ def epoch_subject(subject):
     raw = load_raw(subject)
     raw.filter(L_FREQ, H_FREQ, fir_design="firwin", verbose="error")
     events = get_events(raw)
-    # Epoch directly on CROP: the wider TMIN/TMAX window (needed only for ERD) runs
-    # past the end of each 125 s run and silently drops its last trial.
+    # FIX (F): epoch directly on CROP. The wider TMIN/TMAX window (needed only for ERD) ran
+    # past the end of each 125 s run and silently dropped its last trial (42/45 kept per subject);
+    # not class-dependent, so no bias, just ~7% less data (accuracy move within noise).
     epochs = mne.Epochs(raw, events, EVENT_ID, *CROP, baseline=None,
                         preload=True, verbose="error")
     X = epochs.get_data(copy=True) * 1e6

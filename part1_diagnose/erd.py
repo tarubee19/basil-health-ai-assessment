@@ -15,7 +15,10 @@ import matplotlib.pyplot as plt
 from data import load_raw, get_events, EVENT_ID, TMIN, TMAX, SUBJECTS
 
 BANDS = {"mu": (8.0, 13.0), "beta": (13.0, 30.0)}
-BASELINE = (-1.5, -0.5)  # pre-cue rest (T0), clear of the -2 s epoch edge and the cue at 0 s
+# FIX (E): the starter's (0, 0.5) s lay AFTER the cue, so the reference held the cue-evoked
+# response and ERD onset, distorting ERD% (no effect on accuracy). Now pre-cue T0 rest,
+# clear of the -2 s epoch edge and the cue at 0 s.
+BASELINE = (-1.5, -0.5)
 PICKS = ["C3", "Cz", "C4"]
 
 
