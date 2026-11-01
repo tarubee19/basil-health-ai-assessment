@@ -33,6 +33,15 @@ def evaluate(model, X, y, bs=256):
     return correct / len(y)
 
 
+def mean_loss(model, X, y, loss_fn, bs=256):
+    model.eval(); total = 0.0
+    with torch.no_grad():
+        for i in range(0, len(y), bs):
+            xb = torch.from_numpy(X[i:i + bs]); yb = torch.from_numpy(y[i:i + bs])
+            total += loss_fn(model(xb), yb).item() * len(yb)
+    return total / len(y)
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("--channels", choices=list(CHANNEL_GROUPS), default="all")
@@ -83,7 +92,7 @@ def main():
     loss_fn = nn.CrossEntropyLoss()
     rng = np.random.default_rng(args.seed)
 
-    best_acc, best_state, best_ep = -1.0, None, -1
+    best_val_loss, best_state, best_ep = float("inf"), None, -1
     for ep in range(args.epochs):
         model.train()
         order = rng.permutation(tr)
@@ -92,11 +101,13 @@ def main():
             xb, yb = torch.from_numpy(X[b]), torch.from_numpy(y[b])
             opt.zero_grad(); loss = loss_fn(model(xb), yb); loss.backward(); opt.step()
         va_acc = evaluate(model, X[va], y[va])
-        te_acc = evaluate(model, X[te], y[te])
-        if te_acc > best_acc:   # keep the best checkpoint
-            best_acc, best_ep = te_acc, ep
+        va_loss = mean_loss(model, X[va], y[va], loss_fn)
+        te_acc = evaluate(model, X[te], y[te])   # printed only; never used for selection
+        if va_loss < best_val_loss:   # keep the checkpoint with the lowest validation loss
+            best_val_loss, best_ep = va_loss, ep
             best_state = {k: v.clone() for k, v in model.state_dict().items()}
-        print(f"epoch {ep:3d}  loss {loss.item():.3f}  val {va_acc:.3f}  test {te_acc:.3f}")
+        print(f"epoch {ep:3d}  loss {loss.item():.3f}  val_loss {va_loss:.3f}  "
+              f"val {va_acc:.3f}  test {te_acc:.3f}")
 
     test_acc_last = te_acc
     model.load_state_dict(best_state)
