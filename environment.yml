@@ -11,3 +11,4 @@ dependencies:
   - pip:
       - mne>=1.6
       - torch>=2.0
+      - pyriemann>=0.5
