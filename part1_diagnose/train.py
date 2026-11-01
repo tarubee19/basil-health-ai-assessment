@@ -42,6 +42,7 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--bs", type=int, default=64)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--tag", default="", help="label stored in results.jsonl")
     args = ap.parse_args()
     set_seed(args.seed)
 
@@ -88,9 +89,15 @@ def main():
             best_state = {k: v.clone() for k, v in model.state_dict().items()}
         print(f"epoch {ep:3d}  loss {loss.item():.3f}  val {va_acc:.3f}  test {te_acc:.3f}")
 
+    test_acc_last = te_acc
     model.load_state_dict(best_state)
-    result = dict(channels=args.channels, seed=args.seed, best_epoch=best_ep,
-                  test_acc=evaluate(model, X[te], y[te]), n_test=len(te))
+    per_subject = {int(s): evaluate(model, X[te][groups[te] == s], y[te][groups[te] == s])
+                   for s in np.unique(groups[te])}
+    result = dict(tag=args.tag, channels=args.channels, seed=args.seed, best_epoch=best_ep,
+                  test_acc=evaluate(model, X[te], y[te]), n_test=len(te),
+                  test_acc_last=test_acc_last,
+                  test_subjects=sorted(int(s) for s in np.unique(groups[te])),
+                  test_acc_per_subject=per_subject)
     print(json.dumps(result))
     with open("results.jsonl", "a") as f:
         f.write(json.dumps(result) + "\n")
