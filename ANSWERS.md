@@ -205,3 +205,95 @@ Evidence plot `part1_diagnose/frontal_eog.png` (`eog_probe.py`, Fp1/Fp2 mean, 1�
   8 frontal channels alone get 0.617, and both frontal and motor fall to chance at 8–30 Hz.
 - A trustworthy *evaluation* is not the same as a model that uses *motor imagery*.
 - The fixed {9, 10} test split (90 trials, 0.522, p = 0.38) is too small to read a single number from; use the CV numbers.
+
+---
+
+## Part 2 — Build & Defend (`part2_transformer/`)
+
+Code: `part2_transformer/main.py` (`YourModel`). Numbers: `part2_transformer/results.jsonl`. Full write-up:
+`part2_transformer/README.md`. Reproduce: `cd part2_transformer && python -u main.py --epochs 20 --seeds 0 1 2`.
+
+### 1. Hypothesis (committed in `07411fc`, before the model code in `0c465b7`)
+
+> Fists-vs-feet is encoded in *where* mu/beta power drops (lateral hand areas vs the medial vertex, an
+> anterior–posterior/medial contrast), not in *when* individual samples occur; per-timestep attention compares
+> random-phase amplitudes it can't generalise from 8 subjects, so attending across 64 electrode tokens that carry log
+> band-power and know their 3-D scalp position should beat the vanilla transformer with lower seed variance, and its
+> attention should concentrate on central (FC/C/CP, Cz) rather than frontal electrodes.
+
+**The one bias:** move attention from the time axis to the space axis (electrode tokens), with each token located by
+scalp geometry.
+
+### 2. What I changed and why
+
+- **The weakness:** per-timestep attention has no locality prior and compares single samples whose phase is random
+  across trials. MI ERD is induced, not phase-locked, so on 8 subjects there is little to generalise.
+- **Tokens:** each electrode is one token. A shared temporal filter bank (16 × 0.4 s kernels) is applied, squared,
+  averaged over 0.5 s windows and logged. That gives log band-power, which is phase-invariant like ERD itself.
+- **Attention axis:** attention runs across the 64 electrodes, because the task contrast is spatial and
+  anterior–posterior/medial (hand areas vs foot area near Cz), so a left/right prior would not help.
+- **Position:** an MLP on standardised xyz gives each token its scalp location.
+- **Cost:** the attention matrix shrinks from 482² = 232,324 to 65² = 4,225 entries per head (≈ 55×).
+- **Ablation:** `shuffled` gives the same xyz values to the wrong electrodes; `learned` replaces geometry with a learned
+  per-electrode embedding.
+
+### 3. What happened
+
+Final-epoch test accuracy on subjects 9–10 (n = 90), seeds 0/1/2, **20 epochs for every model** (a time-limit deviation
+from the starter's 40). The harness's "best" is the max over the test curve, i.e. selected on test (Part 1's bug B), so
+final is the headline and peak is shown alongside. Chance is 0.5; p < .05 needs 0.600 (54/90); SE is 5.3 pts.
+
+| Model | params | final, seed 0 / 1 / 2 | best | worst | mean ± std | peak mean |
+|---|---|---|---|---|---|---|
+| **YourModel (geom)** | 76,930 | 0.478 / 0.644 / 0.600 | 0.644 | 0.478 | 0.574 ± 0.070 | 0.611 |
+| YourModel (shuffled) | 76,930 | 0.456 / 0.544 / 0.422 | 0.544 | 0.422 | 0.474 ± 0.052 | 0.526 |
+| YourModel (learned) | 78,786 | 0.433 / 0.556 / 0.533 | 0.556 | 0.433 | 0.507 ± 0.053 | 0.552 |
+| EEGNet (supplied) | 2,610 | 0.522 / 0.589 / 0.467 | 0.589 | 0.467 | 0.526 ± 0.050 | 0.541 |
+| EEGNet-P1 (`kern=80, p=0.5`) | 2,738 | 0.533 / 0.411 / 0.467 | 0.533 | 0.411 | 0.470 ± 0.050 | 0.537 |
+| PatchTransformer (starter) | 232,898 | 0.511 / 0.489 / 0.511 | 0.511 | 0.489 | 0.504 ± 0.010 | 0.593 |
+| VanillaTransformer | 135,746 | 0.533 / 0.522 / 0.533 | 0.533 | 0.522 | 0.530 ± 0.005 | 0.552 |
+
+- **No conclusive win.** geom is the only model with seeds at or above 0.600 (seeds 1 and 2) and has the highest mean,
+  but seed 0 is at chance and the mean is only 4.4 pts above vanilla and 4.8 above EEGNet: inside one SE.
+- **"Lower seed variance" is contradicted.** geom has the widest spread (std 0.070); vanilla is flat at chance (0.005).
+- **The ablation points the right way but is not conclusive:** shuffled 0.474 and learned 0.507 vs geom 0.574.
+  These are 7–10 pt gaps on 3 seeds and one 90-trial test set, and neither ablation is above chance.
+- **Both EEGNets are at chance here** (0.526, 0.470). That is consistent with Part 1 Task 3: in the mu/beta band
+  (Part 2 filters 7–30 Hz) the low-frequency eye shortcut is gone, and so is cross-subject accuracy.
+- **Reproducibility:** retraining geom seed 0 reproduced final 0.478 / peak 0.567 exactly (deterministic CPU).
+- **Supplied files untouched:** `git diff 86e1619` on `models.py`, `data.py` and `train.py` is empty.
+
+### 4. Figure (`part2_transformer/figure.png`)
+
+Panel (a) shows accuracy per seed for every model. Panels (b) and (c) show the geom seed-0 model's last-layer
+CLS→electrode attention.
+
+That attention sits on the scalp rim, on periocular and temporal sites, not on the motor strip (C3/Cz/C4 are near the
+uniform 1/64):
+- fists: Fp2, F8, AF8, Fpz, AF3, Fp1;
+- feet: AF8, T10, Fp1, T9, TP8.
+
+So the **attention-location half of the hypothesis failed**. The map is consistent with the Part 1 cue/eye (EOG) and
+muscle confound. Two caveats: it comes from a seed that is itself at chance, and topomap interpolation exaggerates the
+rim. The t-SNE (`figure_tsne.png`) shows no class separation, and would not be evidence of mechanism anyway.
+
+### What failed / next
+
+- **Failed:** attention location (rim, not FC/C/CP); stability (highest variance); a clear margin over vanilla or EEGNet.
+- **Limits:** 2 test subjects (the two hardest in Part 1's CV), 90 trials, 3 seeds, 20 epochs.
+- **Next:**
+  - rotate the held-out pair (subject-level CV);
+  - Euclidean alignment per subject for the cross-subject shift;
+  - a scalp-distance attention bias (−λ·distance on the logits), so geometry *constrains* attention;
+  - remove the first second after the cue, or regress out Fp channels, then re-check where the model attends.
+
+### Walkthrough crib
+
+- **√d:** q·k sums d_head products, so its variance grows ∝ d_head. Without scaling the softmax saturates and its
+  gradients vanish; /√d_head keeps the logits at about unit variance.
+- **Sequence length / cost:** vanilla has 482 tokens, ours 65. Cost is O(N²·d) per layer: 232,324 vs 4,225 attention
+  entries per head.
+- **80 subjects:** spatial priors matter less with more data, but phase-invariance still matters: induced-rhythm
+  sample amplitudes never align across trials. A class-neutral cue location would matter more than more subjects.
+- **Where it attends:** periocular/temporal rim. That is not sensible for motor imagery; it is consistent with the eye
+  confound.
