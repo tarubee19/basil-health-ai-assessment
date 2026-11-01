@@ -56,11 +56,6 @@ def main():
     print(f"data: {X.shape}, subjects={len(np.unique(groups))}, "
           f"class balance={np.bincount(y)}")
 
-    # Per-channel z-scoring.
-    mean = X.mean(axis=(0, 2), keepdims=True)
-    std = X.std(axis=(0, 2), keepdims=True) + 1e-6
-    X = ((X - mean) / std).astype(np.float32)
-
     # Subject-independent evaluation: whole subjects are held out for test and
     # validation, so no person appears in more than one set.
     te_subj, va_subj = set(args.test_subjects), set(args.val_subjects)
@@ -72,6 +67,13 @@ def main():
     te = np.flatnonzero(np.isin(groups, list(te_subj)))
     print(f"train subjects {sorted(tr_subj)}  val subjects {sorted(va_subj)}  "
           f"test subjects {sorted(te_subj)}")
+
+    # Per-channel z-scoring with training-set statistics only, applied to all sets.
+    # (Per-subject z-scoring is a legitimate alternative, but it uses the test
+    # subject's unlabelled statistics, so it must be declared as such.)
+    mean = X[tr].mean(axis=(0, 2), keepdims=True)
+    std = X[tr].std(axis=(0, 2), keepdims=True) + 1e-6
+    X = ((X - mean) / std).astype(np.float32)
 
     n_ch, n_t = X.shape[1], X.shape[2]
     model = EEGNet(n_ch, n_t)
