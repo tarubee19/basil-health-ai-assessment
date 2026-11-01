@@ -186,3 +186,22 @@ Evidence plot `part1_diagnose/frontal_eog.png` (`eog_probe.py`, Fp1/Fp2 mean, 1�
    - **Analysis:** drop the first ~1 s after the cue **and** band-pass to 8–30 Hz, and/or remove ocular components (ICA or
      regression on Fp channels).
    - Task 3 showed each of these alone already removes the frontal shortcut (frontal → 0.517 and 0.483).
+
+---
+
+## Part 1 — "Defend it" crib
+
+| Bug | How I showed it was wrong | Which way it moved accuracy |
+|---|---|---|
+| A, trial split | Reproduced the split: all 10 subjects in train, val and test (overlap [1..10]) | Down when fixed (inflated before): 0.667 → 0.643 |
+| C, z-score on all trials | The statistics were computed at starter L57-60 before the split at L65, over 420 trials including 84 test trials; per-channel std ratio 0.92–1.27 | Small inflation removed: 0.643 → 0.643 (0 at seed 0) |
+| B, test-selected checkpoint | Starter log: chosen epoch 17 = first argmax of test (0.667); val peaked elsewhere (epochs 14, 15, 28) and was never used | Down when fixed: 0.643 → 0.583 |
+| D, executed runs | MNE `eegbci` / PhysioNet run table: 5/9/13 = execution, 6/10/14 = imagery; the docstring and Part 2 say imagery | Down when fixed: 0.583 → 0.548 |
+| E, post-cue ERD baseline | Epochs start at −2.0 s; the (0, 0.5) s window contains the +50–85 % cue-locked power peak at ~0.25 s; ERD numbers under both baselines compared | None on accuracy; ERD was inflated and uniform before |
+| F, trials dropped at run end | `drop_log`: 3 trials per subject (`BAD boundary` ×2, `TOO_SHORT`); run 124.99 s, last cue 120.40 s, so +5 s overruns; epoching on 0–4 s keeps 45/45 | ~None (within noise): 0.548 → 0.522, n_test 84 → 90 |
+
+**What this still doesn't rule out:**
+- Even the fully fixed pipeline's above-chance accuracy (CV 0.566) is explained by cue-locked, low-frequency activity:
+  8 frontal channels alone get 0.617, and both frontal and motor fall to chance at 8–30 Hz.
+- A trustworthy *evaluation* is not the same as a model that uses *motor imagery*.
+- The fixed {9, 10} test split (90 trials, 0.522, p = 0.38) is too small to read a single number from; use the CV numbers.
