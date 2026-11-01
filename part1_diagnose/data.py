@@ -11,8 +11,8 @@ from mne.datasets import eegbci
 MONTAGE = ("colin27_1005" if "colin27_1005" in mne.channels.get_builtin_montages()
            else "standard_1005")
 
-# Runs containing imagined both-fists vs both-feet trials.
-RUNS = [5, 9, 13]
+# Runs containing IMAGINED both-fists vs both-feet trials (5, 9, 13 are the executed ones).
+RUNS = [6, 10, 14]
 SUBJECTS = list(range(1, 11))
 
 L_FREQ, H_FREQ = 1.0, 40.0   # broadband filter applied to the continuous recording
