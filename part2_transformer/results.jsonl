@@ -1,3 +1,6 @@
 {"model": "YourModel (geom)", "pe": "geom", "seed": 0, "final_acc": 0.4778, "peak_acc": 0.5667, "params": 76930, "epochs": 20}
 {"model": "YourModel (geom)", "pe": "geom", "seed": 1, "final_acc": 0.6444, "peak_acc": 0.6444, "params": 76930, "epochs": 20}
 {"model": "YourModel (geom)", "pe": "geom", "seed": 2, "final_acc": 0.6, "peak_acc": 0.6222, "params": 76930, "epochs": 20}
+{"model": "YourModel (shuffled)", "pe": "shuffled", "seed": 0, "final_acc": 0.4556, "peak_acc": 0.5, "params": 76930, "epochs": 20}
+{"model": "YourModel (shuffled)", "pe": "shuffled", "seed": 1, "final_acc": 0.5444, "peak_acc": 0.5556, "params": 76930, "epochs": 20}
+{"model": "YourModel (shuffled)", "pe": "shuffled", "seed": 2, "final_acc": 0.4222, "peak_acc": 0.5222, "params": 76930, "epochs": 20}
