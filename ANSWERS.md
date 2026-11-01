@@ -1,6 +1,6 @@
 # ANSWERS — EEG × Deep Learning live exam
 
-*Sections marked "Follow-up" were added after the timed session (commits `11574e9`, `7713ee1`, `a3eaf0e`), and a Part 2 subject-rotation follow-up; every number from the timed session is unchanged.*
+*Sections marked "Follow-up" (Part 1 Tasks 2–3 and the Part 2 subject rotation) were added after the timed session; every number from the timed session is unchanged.*
 
 ### Part 1 at a glance
 
