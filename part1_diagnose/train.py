@@ -8,7 +8,6 @@ import json
 import numpy as np
 import torch
 import torch.nn as nn
-from sklearn.model_selection import train_test_split
 
 from data import build_dataset, SUBJECTS
 from model import EEGNet, count_params
@@ -42,6 +41,8 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--bs", type=int, default=64)
     ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--test-subjects", type=int, nargs="+", default=[9, 10])
+    ap.add_argument("--val-subjects", type=int, nargs="+", default=[7, 8])
     ap.add_argument("--tag", default="", help="label stored in results.jsonl")
     args = ap.parse_args()
     set_seed(args.seed)
@@ -60,11 +61,17 @@ def main():
     std = X.std(axis=(0, 2), keepdims=True) + 1e-6
     X = ((X - mean) / std).astype(np.float32)
 
-    # Subject-independent evaluation: hold out 20% for test, then 20% of the
-    # remainder for validation.
-    idx = np.arange(len(y))
-    tr, te = train_test_split(idx, test_size=0.2, stratify=y, random_state=args.seed)
-    tr, va = train_test_split(tr, test_size=0.2, stratify=y[tr], random_state=args.seed)
+    # Subject-independent evaluation: whole subjects are held out for test and
+    # validation, so no person appears in more than one set.
+    te_subj, va_subj = set(args.test_subjects), set(args.val_subjects)
+    tr_subj = set(np.unique(groups).tolist()) - te_subj - va_subj
+    assert not (tr_subj & te_subj) and not (tr_subj & va_subj) and not (va_subj & te_subj)
+    assert tr_subj and va_subj and te_subj
+    tr = np.flatnonzero(np.isin(groups, list(tr_subj)))
+    va = np.flatnonzero(np.isin(groups, list(va_subj)))
+    te = np.flatnonzero(np.isin(groups, list(te_subj)))
+    print(f"train subjects {sorted(tr_subj)}  val subjects {sorted(va_subj)}  "
+          f"test subjects {sorted(te_subj)}")
 
     n_ch, n_t = X.shape[1], X.shape[2]
     model = EEGNet(n_ch, n_t)
