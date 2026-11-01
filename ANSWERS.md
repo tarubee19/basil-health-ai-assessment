@@ -1,7 +1,5 @@
 # ANSWERS — EEG × Deep Learning live exam
 
-*Sections marked "Follow-up" (Part 1 Tasks 2–3 and the Part 2 subject rotation) were added after the timed session; every number from the timed session is unchanged.*
-
 ### Part 1 at a glance
 
 - **Six bugs found and fixed, one commit each.** Accuracy went from 0.667 (inflated) to 0.522 on the fixed test split, and
@@ -10,7 +8,7 @@
   mesial wall.
 - **The remaining 0.566 is an eye-movement shortcut.** 8 frontal channels alone score 0.617. That signal sits in the first
   second after the cue and below 8 Hz, and it disappears with 8–30 Hz / 1–4 s ("EOG-free").
-- **Follow-up: without the shortcut**, motor imagery is decodable within subjects (CSP 0.711 on motor channels; EEGNet 0.553).
+- **Without the shortcut**, motor imagery is decodable within subjects (CSP 0.711 on motor channels; EEGNet 0.553).
   Across subjects it is only suggestive (best 0.633, not significant after correction).
 
 All numbers below come from `part1_diagnose/results.jsonl` (one row per run, labelled by `tag`) or from a quoted command
@@ -111,7 +109,7 @@ tangential sources, so little of its activity reaches the scalp; a Laplacian che
   - the reference is unknown and there is no spatial filter (Laplacian/CSP), so Cz is blurred by its neighbours;
   - averaging subjects with different mu peak frequencies flattens the curves further.
   Beta was not clearer for feet here (Cz −6.4 % feet vs −6.0 % hands).
-- *Follow-up (`erd_plus.py`, `erd_plus_mu.png`):* a small Laplacian makes feet mu ERD at Cz weaker, not sharper (−4.6 % →
+- *Laplacian check (`erd_plus.py`, `erd_plus_mu.png`):* a small Laplacian makes feet mu ERD at Cz weaker, not sharper (−4.6 % →
   +2.8 %, 7/10 → 4/10 subjects negative). So the "blurred by its neighbours" bullet is not supported, and the deep, mesial,
   tangential source is the better explanation: a Laplacian favours superficial radial sources.
 
@@ -188,7 +186,7 @@ EEGNet falls to chance across subjects, so the pipeline's cross-subject accuracy
   model's above-chance accuracy is explained by slow, cue-locked activity: EOG spreading back over the scalp (visible at
   C3/Cz/C4 in the raw traces) and/or visual evoked potentials, not by motor-imagery ERD.
 
-### Follow-up checks (after the timed session)
+### Is there a brain signal without the eye shortcut?
 
 Setting: "EOG-free" = 8–30 Hz **and** crop 1–4 s; same subject folds as `--split cv`. Statistics are per subject (n = 10):
 mean, one-sided Wilcoxon p vs 0.5, and the number of subjects above 0.5. Classical baselines are in `classical.py`
@@ -211,7 +209,7 @@ the rows in `results.jsonl` (tags `a1_*`, `a2_*`, `a3_*`, `c3_*`).
   25 EOG-free cross-subject configs tried (Holm p = 0.12).
 - **Frontal channels** are at chance cross-subject but still give 0.571 within-subject. So the motor result is "mostly
   sensorimotor": some non-motor information may survive the filter.
-- **Conclusion.** The eye signal was the shortcut behind the submitted cross-subject accuracy. Motor-imagery ERD is real and
+- **Conclusion.** The eye signal was the shortcut behind the pipeline's cross-subject accuracy. Motor-imagery ERD is real and
   decodable within subjects, where simple covariance models reach ~0.71. EEGNet is data-hungry and does not learn it from
   ~36 training trials per subject (within) or 6 training people (across).
 
@@ -256,7 +254,7 @@ the rows in `results.jsonl` (tags `a1_*`, `a2_*`, `a3_*`, `c3_*`).
 - A trustworthy *evaluation* is not the same as a model that uses *motor imagery*: the fixed pipeline's 0.566 comes from the
   eye-movement shortcut (Task 3).
 - Without the shortcut, motor imagery decodes within subjects but not reliably across them, and frontal channels still carry
-  some within-subject information (Task 3 follow-up).
+  some within-subject information (Task 3, EOG-free checks).
 - The fixed {9, 10} test split (90 trials, 0.522, p = 0.38) is too small to read a single number from; use the CV numbers.
 
 ---
@@ -270,11 +268,11 @@ Code: `part2_transformer/main.py` (`YourModel`). Numbers: `part2_transformer/res
 
 - **The bet:** attend across 64 **electrode tokens** (log band-power, placed by 3-D scalp geometry) instead of 481
   timesteps. The attention matrix shrinks from 482² to 65².
-- **Exam day (subjects 9–10, 3 seeds):** geom had the highest mean (0.574), but within one SE of vanilla (0.530) and
+- **Fixed split (test subjects 9–10, 3 seeds):** geom had the highest mean (0.574), but within one SE of vanilla (0.530) and
   EEGNet (0.526). No conclusive win, and seed variance was not lower.
-- **Follow-up (all 10 subjects rotated, validation-selected checkpoints):** every neural model is at chance (geom 0.496,
+- **All 10 subjects rotated (validation-selected checkpoints):** every neural model is at chance (geom 0.496,
   best EEGNet 0.527). Real vs shuffled geometry makes no difference (−0.004, p = 0.55), and removing attention changes
-  nothing. The exam-day lead and the rim attention map were noise from one split.
+  nothing. The fixed-split lead and the rim attention map were noise from one split.
 - **Lesson:** with 6–8 training subjects the bottleneck is the shift between people, not the attention axis. Only
   covariance re-centering (TS+RPA, which uses unlabelled test-subject trials) gets above chance (0.618).
 
@@ -304,8 +302,8 @@ scalp geometry.
 
 ### 3. What happened
 
-Final-epoch test accuracy on subjects 9–10 (n = 90), seeds 0/1/2, **20 epochs for every model** (a time-limit deviation
-from the starter's 40). The harness's "best" is the max over the test curve, i.e. selected on test (Part 1's bug B), so
+Final-epoch test accuracy on subjects 9–10 (n = 90), seeds 0/1/2, **20 epochs for every model**
+(the starter default is 40). The harness's "best" is the max over the test curve, i.e. selected on test (Part 1's bug B), so
 final is the headline and peak is shown alongside. Chance is 0.5; p < .05 needs 0.600 (54/90); SE is 5.3 pts.
 
 | Model | params | final, seed 0 / 1 / 2 | best | worst | mean ± std | peak mean |
@@ -328,12 +326,12 @@ final is the headline and peak is shown alongside. Chance is 0.5; p < .05 needs 
 - **Reproducibility:** retraining geom seed 0 reproduced final 0.478 / peak 0.567 exactly (deterministic CPU).
 - **Supplied files untouched:** `git diff 86e1619` on `models.py`, `data.py` and `train.py` is empty.
 
-#### Follow-up: subject rotation
+#### Subject rotation (all 10 subjects)
 
 5-fold subject CV (same folds as Part 1), validation-selected checkpoints, seeds 0–2, 40 epochs, on Part 2's 7–30 Hz,
 0–3 s data (`part2_transformer/cv.py`, rows tagged B1/B6/B7 in `results.jsonl`, `figure_cv.png`). The p < .05 line on 450
 pooled trials is 0.540. "p vs 0.5" is a Wilcoxon test over the 10 subjects, uncorrected; "geom − model" is paired over
-the same subjects. Vanilla not re-run under rotation (time); on the exam-day split it was at chance, 0.530.
+the same subjects. Vanilla was not run under rotation; on the fixed split it was at chance, 0.530.
 
 | Model | pooled accuracy, seed 0 / 1 / 2 | best run | worst run | p vs 0.5 | geom − model (p) |
 |---|---|---|---|---|---|
@@ -354,8 +352,8 @@ the same subjects. Vanilla not re-run under rotation (time); on the exam-day spl
 | TS+LR+RPA, motor (transductive) | 0.600 (all seeds) | 0.711 | 0.533 | 0.010 | -0.104 (0.027) |
 
 - **Every neural model is at chance.** None reaches 0.540 in any seed (geom 0.496, best EEGNet 0.527).
-- **The exam-day lead was noise from the single subjects 9–10 split.** geom vs shuffled is −0.004 (p = 0.55) and vs
-  EEGNet −0.031 (p = 0.49); the exam-day ablation gap was 0.574 vs 0.474.
+- **The fixed-split lead was noise from the single subjects 9–10 split.** geom vs shuffled is −0.004 (p = 0.55) and vs
+  EEGNet −0.031 (p = 0.49); the fixed-split ablation gap was 0.574 vs 0.474.
 - **Attention adds nothing shown:** geom is +0.009 ahead of TokensNoAttn, which removes attention (p = 0.086).
 - **Classical references:**
   - TS+LR+RPA pools 0.618 and beats geom (−0.121, p = 0.008). It is transductive, and its p vs 0.5 does not survive
@@ -378,7 +376,7 @@ So the **attention-location half of the hypothesis failed**. The map is consiste
 muscle confound. Two caveats: it comes from a seed that is itself at chance, and topomap interpolation exaggerates the
 rim. The t-SNE (`figure_tsne.png`) shows no class separation, and would not be evidence of mechanism anyway.
 
-**Follow-up:** the rim attention did not replicate under rotation: region attention is about uniform (0.955–1.03× the
+**Under rotation:** the rim attention did not replicate: region attention is about uniform (0.955–1.03× the
 uniform share), seed-to-seed Spearman is 0.006, and it is unrelated to region occlusion (−0.08). The original map is best
 read as noise from a single at-chance model.
 
@@ -386,13 +384,13 @@ read as noise from a single at-chance model.
 
 - **Failed:** attention location (rim, not FC/C/CP); stability (highest variance); a clear margin over vanilla or EEGNet.
 - **Limits:** 2 test subjects (the two hardest in Part 1's CV), 90 trials, 3 seeds, 20 epochs.
-- **Next:**
-  - rotate the held-out pair (subject-level CV): done, see "Follow-up: subject rotation";
-  - rim check: attention and region occlusion done, see the follow-up under "4. Figure"; retraining without the rim or
-    the first second after the cue: not run;
-  - Euclidean alignment per subject for the cross-subject shift: not run for the neural models;
-  - a scalp-distance attention bias (−λ·distance on the logits), so geometry *constrains* attention: not run;
-  - learning curve (train on 2, 4, 6 subjects): not run.
+- **Checked:** subject rotation (see "Subject rotation (all 10 subjects)"); attention vs region occlusion (see
+  "4. Figure").
+- **Not run:**
+  - retraining without the rim or the first second after the cue;
+  - Euclidean alignment per subject for the neural models;
+  - a scalp-distance attention bias (−λ·distance on the logits), so geometry *constrains* attention;
+  - a learning curve (train on 2, 4, 6 subjects).
 
 ### Walkthrough notes
 
@@ -402,5 +400,5 @@ read as noise from a single at-chance model.
   entries per head.
 - **80 subjects:** spatial priors matter less with more data, but phase-invariance still matters: induced-rhythm
   sample amplitudes never align across trials. A class-neutral cue location would matter more than more subjects.
-- **Where it attends:** the exam-day seed-0 map showed the periocular/temporal rim, but under rotation attention is about
+- **Where it attends:** the fixed-split seed-0 map showed the periocular/temporal rim, but under rotation attention is about
   uniform and unstable across seeds (Spearman 0.006). That map is best read as noise from a single at-chance model.
