@@ -110,6 +110,7 @@ Reproduce with `python -u main.py --epochs 20 --seeds 0 1 2`; every run is appen
 | VanillaTransformer | 135,746 | 0,1,2 | 0.533 / 0.522 / 0.533 | 0.533 | 0.522 | 0.530 ± 0.005 | 0.552 |
 | EEGNet-P1 (k80,p.5) | 2,738 | 0,1,2 | 0.533 / 0.411 / 0.467 | 0.533 | 0.411 | 0.470 ± 0.050 | 0.537 |
 <!-- /table -->
+Follow-up with all 10 subjects rotated: see "Follow-up: subject rotation" in the root `ANSWERS.md`.
 
 **Run provenance:** VanillaTransformer and EEGNet-P1 (the Part 1 config, `kern=80, p=0.5`, set via constructor
 arguments; `models.py` unchanged) were run after the time limit with `--only vanilla` and `--only eegnet_p1`: same

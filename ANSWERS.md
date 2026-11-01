@@ -1,6 +1,6 @@
 # ANSWERS — EEG × Deep Learning live exam
 
-*Sections marked "Follow-up" were added after the timed session (commits `11574e9`, `7713ee1`, `a3eaf0e`); every number from the timed session is unchanged.*
+*Sections marked "Follow-up" were added after the timed session (commits `11574e9`, `7713ee1`, `a3eaf0e`), and a Part 2 subject-rotation follow-up; every number from the timed session is unchanged.*
 
 ### Part 1 at a glance
 
@@ -316,6 +316,42 @@ final is the headline and peak is shown alongside. Chance is 0.5; p < .05 needs 
 - **Reproducibility:** retraining geom seed 0 reproduced final 0.478 / peak 0.567 exactly (deterministic CPU).
 - **Supplied files untouched:** `git diff 86e1619` on `models.py`, `data.py` and `train.py` is empty.
 
+#### Follow-up: subject rotation
+
+5-fold subject CV (same folds as Part 1), validation-selected checkpoints, seeds 0–2, 40 epochs, on Part 2's 7–30 Hz,
+0–3 s data (`part2_transformer/cv.py`, rows tagged B1/B6/B7 in `results.jsonl`, `figure_cv.png`). The p < .05 line on 450
+pooled trials is 0.540. "p vs 0.5" is a Wilcoxon test over the 10 subjects, uncorrected; "geom − model" is paired over
+the same subjects. Vanilla not re-run under rotation (time); on the exam-day split it was at chance, 0.530.
+
+| Model | pooled accuracy, seed 0 / 1 / 2 | best run | worst run | p vs 0.5 | geom − model (p) |
+|---|---|---|---|---|---|
+| **YourModel (geom)** | 0.516 / 0.511 / 0.462 | 0.567 | 0.411 | 0.576 | — |
+| YourModel (shuffled per seed) | 0.516 / 0.509 / 0.478 | 0.567 | 0.411 | 0.221 | -0.004 (0.547) |
+| YourModel (learned) | 0.487 / 0.502 / 0.511 | 0.600 | 0.400 | 0.697 | -0.004 (1.000) |
+| YourModel (no position) | 0.496 / 0.502 / 0.507 | 0.589 | 0.422 | 0.867 | -0.005 (0.453) |
+| TokensNoAttn | 0.473 / 0.498 / 0.491 | 0.578 | 0.389 | 0.645 | +0.009 (0.086) |
+| EEGNet (supplied) | 0.522 / 0.538 / 0.522 | 0.678 | 0.400 | 0.477 | -0.031 (0.492) |
+| EEGNet-P1 | 0.504 / 0.496 / 0.493 | 0.556 | 0.389 | 0.471 | -0.001 (0.652) |
+| PatchTransformer | 0.489 / 0.498 / 0.500 | 0.533 | 0.444 | 0.754 | +0.001 (0.922) |
+| CSP+LDA, 6 subjects | 0.509 (all seeds) | 0.622 | 0.433 | 0.988 | -0.013 (0.922) |
+| CSP+LDA | 0.571 (all seeds) | 0.822 | 0.422 | 0.539 | -0.075 (0.250) |
+| CSP+LDA, motor | 0.529 (all seeds) | 0.600 | 0.467 | 0.189 | -0.033 (0.344) |
+| TS+LR | 0.542 (all seeds) | 0.622 | 0.489 | 0.127 | -0.046 (0.186) |
+| TS+LR, motor | 0.536 (all seeds) | 0.578 | 0.511 | 0.182 | -0.039 (0.770) |
+| TS+LR+RPA (transductive) | 0.618 (all seeds) | 0.689 | 0.522 | 0.006 | -0.121 (0.008) |
+| TS+LR+RPA, motor (transductive) | 0.600 (all seeds) | 0.711 | 0.533 | 0.010 | -0.104 (0.027) |
+
+- **Every neural model is at chance.** None reaches 0.540 in any seed (geom 0.496, best EEGNet 0.527).
+- **The exam-day lead was noise from the single subjects 9–10 split.** geom vs shuffled is −0.004 (p = 0.55) and vs
+  EEGNet −0.031 (p = 0.49); the exam-day ablation gap was 0.574 vs 0.474.
+- **Attention adds nothing shown:** geom is +0.009 ahead of TokensNoAttn, which removes attention (p = 0.086).
+- **Classical references:**
+  - TS+LR+RPA pools 0.618 and beats geom (−0.121, p = 0.008). It is transductive, and its p vs 0.5 does not survive
+    Holm over these 15 rows (0.088).
+  - CSP+LDA pools 0.571, but its per-subject test is p = 0.54, driven by S7 (0.89) and S2 (0.76).
+  - Classical rows fit on all 8 non-test subjects unless marked; neural models train on 6, so they are not like for like
+    (CSP+LDA pools 0.509 with 6).
+
 ### 4. Figure (`part2_transformer/figure.png`)
 
 Panel (a) shows accuracy per seed for every model. Panels (b) and (c) show the geom seed-0 model's last-layer
@@ -330,15 +366,21 @@ So the **attention-location half of the hypothesis failed**. The map is consiste
 muscle confound. Two caveats: it comes from a seed that is itself at chance, and topomap interpolation exaggerates the
 rim. The t-SNE (`figure_tsne.png`) shows no class separation, and would not be evidence of mechanism anyway.
 
+**Follow-up:** the rim attention did not replicate under rotation: region attention is about uniform (0.955–1.03× the
+uniform share), seed-to-seed Spearman is 0.006, and it is unrelated to region occlusion (−0.08). The original map is best
+read as noise from a single at-chance model.
+
 ### What failed / next
 
 - **Failed:** attention location (rim, not FC/C/CP); stability (highest variance); a clear margin over vanilla or EEGNet.
 - **Limits:** 2 test subjects (the two hardest in Part 1's CV), 90 trials, 3 seeds, 20 epochs.
 - **Next:**
-  - rotate the held-out pair (subject-level CV);
-  - Euclidean alignment per subject for the cross-subject shift;
-  - a scalp-distance attention bias (−λ·distance on the logits), so geometry *constrains* attention;
-  - remove the first second after the cue, or regress out Fp channels, then re-check where the model attends.
+  - rotate the held-out pair (subject-level CV): done, see "Follow-up: subject rotation";
+  - rim check: attention and region occlusion done, see the follow-up under "4. Figure"; retraining without the rim or
+    the first second after the cue: not run;
+  - Euclidean alignment per subject for the cross-subject shift: not run for the neural models;
+  - a scalp-distance attention bias (−λ·distance on the logits), so geometry *constrains* attention: not run;
+  - learning curve (train on 2, 4, 6 subjects): not run.
 
 ### Walkthrough crib
 
@@ -348,5 +390,5 @@ rim. The t-SNE (`figure_tsne.png`) shows no class separation, and would not be e
   entries per head.
 - **80 subjects:** spatial priors matter less with more data, but phase-invariance still matters: induced-rhythm
   sample amplitudes never align across trials. A class-neutral cue location would matter more than more subjects.
-- **Where it attends:** periocular/temporal rim. That is not sensible for motor imagery; it is consistent with the eye
-  confound.
+- **Where it attends:** the exam-day seed-0 map showed the periocular/temporal rim, but under rotation attention is about
+  uniform and unstable across seeds (Spearman 0.006). That map is best read as noise from a single at-chance model.
