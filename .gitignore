@@ -3,3 +3,4 @@ scratch_checks.py
 logs_*.txt
 __pycache__/
 scratch_*.py
+scratch/
