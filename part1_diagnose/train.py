@@ -113,7 +113,7 @@ def fit_eval(X, y, groups, tr, va, te, args):
     per_subject = {int(s): evaluate(model, X[te][groups[te] == s], y[te][groups[te] == s])
                    for s in np.unique(groups[te])}
     return dict(tag=args.tag, channels=args.channels, crop=args.crop, fband=args.fband,
-                regress_frontal=args.regress_frontal,
+                regress_frontal=args.regress_frontal, align=args.align,
                 seed=args.seed, best_epoch=best_ep,
                 test_acc=evaluate(model, X[te], y[te]), n_test=len(te),
                 test_acc_last=test_acc_last,
@@ -147,6 +147,9 @@ def main():
     ap.add_argument("--out", default="results.jsonl", help="results file to append to")
     ap.add_argument("--regress-frontal", action="store_true",
                     help="regress frontal (EOG-proxy) channels out of the rest, then drop them")
+    ap.add_argument("--align", choices=["none", "ea"], default="none",
+                    help="ea = per-subject Euclidean alignment (TRANSDUCTIVE: uses the "
+                         "test subject's unlabelled trials)")
     args = ap.parse_args()
     set_seed(args.seed)
 
@@ -159,6 +162,10 @@ def main():
         if not picks:
             raise ValueError(f"Fill in CHANNEL_GROUPS['{args.channels}'] first.")
         X = X[:, [ch_names.index(c) for c in picks]]
+    if args.align == "ea":
+        # Per-subject Euclidean alignment on raw epochs, before the split's z-scoring.
+        from align import euclidean_align
+        X = euclidean_align(X, groups)
     print(f"data: {X.shape}, subjects={len(np.unique(groups))}, "
           f"class balance={np.bincount(y)}")
 
@@ -184,7 +191,7 @@ def main():
         correct = sum(r["test_acc"] * r["n_test"] for r in rows); n = sum(r["n_test"] for r in rows)
         per = {s: float(np.mean([r["test_acc"] for r in rows if r["subject"] == s])) for s in sorted(all_subj)}
         log(dict(tag=args.tag, channels=args.channels, crop=args.crop, fband=args.fband,
-                 regress_frontal=args.regress_frontal, seed=args.seed, split="within",
+                 regress_frontal=args.regress_frontal, align=args.align, seed=args.seed, split="within",
                  test_acc_pooled=correct / n, n_test=n, test_acc_per_subject=per,
                  test_acc_last_mean=float(np.mean([r["test_acc_last"] for r in rows]))), args.out)
         return
@@ -202,7 +209,7 @@ def main():
     accs = np.array([r["test_acc"] for r in rows])
     n = np.array([r["n_test"] for r in rows])
     log(dict(tag=args.tag, channels=args.channels, crop=args.crop, fband=args.fband,
-             regress_frontal=args.regress_frontal,
+             regress_frontal=args.regress_frontal, align=args.align,
              seed=args.seed, split="cv",
              fold_test_acc=accs.tolist(), test_acc_mean=accs.mean(), test_acc_sd=accs.std(ddof=1),
              test_acc_pooled=float((accs * n).sum() / n.sum()), n_test=int(n.sum()),
