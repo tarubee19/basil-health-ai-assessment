@@ -74,7 +74,27 @@ concentrate on central (FC/C/CP, Cz) rather than frontal electrodes.
 *The one bias:* change the attention axis from time to space (electrode tokens), with tokens located by scalp geometry.
 The geometry part is tested by an ablation (shuffled / learned position) so we can say whether it matters.
 
+Hypothesis committed in `07411fc`, before any model code (`0c465b7`).
+
 **What I changed and why:**
+- **The weakness:** per-timestep attention has no locality prior. It compares single samples whose phase is random from
+  trial to trial: motor-imagery ERD is *induced*, not phase-locked, so on 8 subjects there is little to generalise.
+- **Tokens:** each of the 64 electrodes becomes one token. A shared temporal filter bank (16 filters, 0.4 s kernels) is
+  applied to each electrode, squared, averaged over 0.5 s windows and logged. That gives log band-power, which is
+  phase-invariant, like ERD itself.
+- **Attention axis:** attention runs across electrodes, because the task signal is spatial: lateral hand areas vs the
+  medial foot area near Cz. That is an anterior–posterior/medial contrast, so a left/right-only prior would not help.
+- **Positional encoding:** an MLP on standardised 3-D xyz gives each token its scalp location.
+- **Cost:** the attention matrix shrinks from 482² = 232,324 to 65² = 4,225 entries per head (≈ 55× smaller).
+- **Ablation:** the same model with xyz assigned to the wrong electrodes (`shuffled`) or a learned per-electrode
+  embedding (`learned`) tests whether *geometry* matters, or just having electrode tokens.
+
+**Setup / deviations:** same split (train 1–8, test 9–10, n_test = 90), preprocessing, harness, lr and weight decay for
+every model; seeds 0, 1, 2 for all. **Time-limit deviation:** all models were trained for **20 epochs**, not the starter
+default of 40 (same for every model). `train_model`'s "best" is the max of the test-accuracy curve, i.e. chosen on the
+test set (Part 1's checkpoint bug), so the headline is **final-epoch** accuracy, with peak alongside. On 90 trials the
+SE at 50 % is 5.3 pts and one-sided p < .05 needs ≥ 60 % (54/90), so model differences under ~7–10 pts are not conclusive.
+Reproduce with `python -u main.py --epochs 20 --seeds 0 1 2`; every run is appended to `results.jsonl`.
 
 **Results (best / worst / mean across seeds):**
 
