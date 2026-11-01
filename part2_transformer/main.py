@@ -217,8 +217,8 @@ def save_figure(rows, attn, pos, names, thr, path):
     import mne
 
     ink, muted, accent = "#1f2328", "#8b949e", "#c2410c"
-    fig, ax = plt.subplots(1, 3, figsize=(14, 4.4),
-                           gridspec_kw=dict(width_ratios=[1.5, 1, 1]))
+    fig, ax = plt.subplots(1, 3, figsize=(16, 4.6),
+                           gridspec_kw=dict(width_ratios=[2, 1, 1]))
     models = list(dict.fromkeys(r["model"] for r in rows))
     for i, m in enumerate(models):
         f = np.array([r["final_acc"] for r in rows if r["model"] == m])
@@ -233,7 +233,8 @@ def save_figure(rows, attn, pos, names, thr, path):
                color=muted, fontsize=8)
     ax[0].set_xlim(-0.5, len(models) - 0.5)
     ax[0].set_xticks(range(len(models)))
-    ax[0].set_xticklabels([m.replace(" (", "\n(") for m in models], fontsize=7.5)
+    ax[0].set_xticklabels([m.replace(" (", "\n(").replace("Transformer", "\nTransformer")
+                           for m in models], fontsize=7.5)
     ax[0].set_ylabel("final-epoch test accuracy (subj 9-10)")
     ax[0].set_ylim(0.3, 0.8)
     ax[0].grid(axis="y", color="#e5e7eb", lw=0.6)
