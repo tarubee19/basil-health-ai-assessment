@@ -37,7 +37,7 @@ ATTN_SIZE = {"vanilla": 482 ** 2, "patch": (481 // 32 + 1) ** 2, "geom": 65 ** 2
 def rows(tag=None):
     with open(LOG) as f:
         r = [json.loads(l) for l in f if l.strip()]
-    r = [x for x in r if "exp" in x]                       # cv.py rows only; exam-day main.py rows have no tag
+    r = [x for x in r if "exp" in x]                       # cv.py rows only; fixed-split main.py rows have no tag
     return [x for x in r if tag is None or x["exp"] == tag]
 
 
@@ -260,7 +260,7 @@ def cmd_stats(args):
     rb = [r for r in R if r["exp"] in ("B1", "B6")]
     if rb:
         print("### Efficiency (4 threads, train subjects = 6, 270 trials)\n")
-        print("**Timings are not comparable between models:** Part 1's follow-up jobs ran on the same CPU at the same")
+        print("**Timings are not comparable between models:** Part 1's jobs ran on the same CPU at the same")
         print("time, with varying load, so s/epoch and ms/trial mix model cost with contention. Params and attention")
         print("sizes are exact.\n")
         print("| model | params | train s/epoch | inference ms/trial | attention matrix entries per head |")
