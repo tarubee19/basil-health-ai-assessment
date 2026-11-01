@@ -266,6 +266,18 @@ the rows in `results.jsonl` (tags `a1_*`, `a2_*`, `a3_*`, `c3_*`).
 Code: `part2_transformer/main.py` (`YourModel`). Numbers: `part2_transformer/results.jsonl`. Full write-up:
 `part2_transformer/README.md`. Reproduce: `cd part2_transformer && python -u main.py --epochs 20 --seeds 0 1 2`.
 
+### Part 2 at a glance
+
+- **The bet:** attend across 64 **electrode tokens** (log band-power, placed by 3-D scalp geometry) instead of 481
+  timesteps. The attention matrix shrinks from 482² to 65².
+- **Exam day (subjects 9–10, 3 seeds):** geom had the highest mean (0.574), but within one SE of vanilla (0.530) and
+  EEGNet (0.526). No conclusive win, and seed variance was not lower.
+- **Follow-up (all 10 subjects rotated, validation-selected checkpoints):** every neural model is at chance (geom 0.496,
+  best EEGNet 0.527). Real vs shuffled geometry makes no difference (−0.004, p = 0.55), and removing attention changes
+  nothing. The exam-day lead and the rim attention map were noise from one split.
+- **Lesson:** with 6–8 training subjects the bottleneck is the shift between people, not the attention axis. Only
+  covariance re-centering (TS+RPA, which uses unlabelled test-subject trials) gets above chance (0.618).
+
 ### 1. Hypothesis (committed in `07411fc`, before the model code in `0c465b7`)
 
 > Fists-vs-feet is encoded in *where* mu/beta power drops (lateral hand areas vs the medial vertex, an
@@ -382,7 +394,7 @@ read as noise from a single at-chance model.
   - a scalp-distance attention bias (−λ·distance on the logits), so geometry *constrains* attention: not run;
   - learning curve (train on 2, 4, 6 subjects): not run.
 
-### Walkthrough crib
+### Walkthrough notes
 
 - **√d:** q·k sums d_head products, so its variance grows ∝ d_head. Without scaling the softmax saturates and its
   gradients vanish; /√d_head keeps the logits at about unit variance.
