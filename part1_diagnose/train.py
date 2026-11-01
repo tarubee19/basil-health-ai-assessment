@@ -10,7 +10,7 @@ import torch
 import torch.nn as nn
 from sklearn.model_selection import GroupKFold
 
-from data import build_dataset, SUBJECTS
+from data import build_dataset, SUBJECTS, CROP, L_FREQ, H_FREQ
 from model import EEGNet, count_params
 
 # Electrode groups for the channel-subset run (Task 3).
@@ -100,7 +100,8 @@ def run_split(X, y, groups, tr_subj, va_subj, te_subj, args):
     model.load_state_dict(best_state)
     per_subject = {int(s): evaluate(model, X[te][groups[te] == s], y[te][groups[te] == s])
                    for s in np.unique(groups[te])}
-    return dict(tag=args.tag, channels=args.channels, seed=args.seed, best_epoch=best_ep,
+    return dict(tag=args.tag, channels=args.channels, crop=args.crop, fband=args.fband,
+                seed=args.seed, best_epoch=best_ep,
                 test_acc=evaluate(model, X[te], y[te]), n_test=len(te),
                 test_acc_last=test_acc_last,
                 test_subjects=sorted(int(s) for s in np.unique(groups[te])),
@@ -121,6 +122,9 @@ def main():
     ap.add_argument("--lr", type=float, default=1e-3)
     ap.add_argument("--bs", type=int, default=64)
     ap.add_argument("--seed", type=int, default=0)
+    # Task 3 probes: --crop 1 4 drops the cue/saccade second; --fband 8 30 removes slow EOG.
+    ap.add_argument("--crop", type=float, nargs=2, default=list(CROP), metavar=("T0", "T1"))
+    ap.add_argument("--fband", type=float, nargs=2, default=[L_FREQ, H_FREQ], metavar=("LO", "HI"))
     ap.add_argument("--split", choices=["fixed", "cv"], default="fixed",
                     help="fixed: --test/--val-subjects; cv: 5-fold GroupKFold over subjects")
     ap.add_argument("--test-subjects", type=int, nargs="+", default=[9, 10])
@@ -129,7 +133,7 @@ def main():
     args = ap.parse_args()
     set_seed(args.seed)
 
-    X, y, groups, ch_names = build_dataset(args.subjects)
+    X, y, groups, ch_names = build_dataset(args.subjects, tuple(args.crop), tuple(args.fband))
     picks = CHANNEL_GROUPS[args.channels]
     if picks is not None:
         if not picks:
@@ -156,7 +160,8 @@ def main():
         log(row); rows.append(row)
     accs = np.array([r["test_acc"] for r in rows])
     n = np.array([r["n_test"] for r in rows])
-    log(dict(tag=args.tag, channels=args.channels, seed=args.seed, split="cv",
+    log(dict(tag=args.tag, channels=args.channels, crop=args.crop, fband=args.fband,
+             seed=args.seed, split="cv",
              fold_test_acc=accs.tolist(), test_acc_mean=accs.mean(), test_acc_sd=accs.std(ddof=1),
              test_acc_pooled=float((accs * n).sum() / n.sum()), n_test=int(n.sum()),
              test_acc_last_mean=float(np.mean([r["test_acc_last"] for r in rows]))))

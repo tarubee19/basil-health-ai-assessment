@@ -40,25 +40,25 @@ def get_events(raw):
     return events
 
 
-def epoch_subject(subject):
+def epoch_subject(subject, crop=CROP, fband=(L_FREQ, H_FREQ)):
     """Return X (n_trials, 64, n_times) in microvolts, y (0=hands, 1=feet), ch_names."""
     raw = load_raw(subject)
-    raw.filter(L_FREQ, H_FREQ, fir_design="firwin", verbose="error")
+    raw.filter(*fband, fir_design="firwin", verbose="error")
     events = get_events(raw)
     # FIX (F): epoch directly on CROP. The wider TMIN/TMAX window (needed only for ERD) ran
     # past the end of each 125 s run and silently dropped its last trial (42/45 kept per subject);
     # not class-dependent, so no bias, just ~7% less data (accuracy move within noise).
-    epochs = mne.Epochs(raw, events, EVENT_ID, *CROP, baseline=None,
+    epochs = mne.Epochs(raw, events, EVENT_ID, *crop, baseline=None,
                         preload=True, verbose="error")
     X = epochs.get_data(copy=True) * 1e6
     y = epochs.events[:, 2] - 1
     return X.astype(np.float32), y.astype(np.int64), epochs.ch_names
 
 
-def build_dataset(subjects=SUBJECTS):
+def build_dataset(subjects=SUBJECTS, crop=CROP, fband=(L_FREQ, H_FREQ)):
     """Stack all subjects. `groups` holds the subject id of every trial."""
     Xs, ys, gs = [], [], []
     for s in subjects:
-        X, y, ch_names = epoch_subject(s)
+        X, y, ch_names = epoch_subject(s, crop, fband)
         Xs.append(X); ys.append(y); gs.append(np.full(len(y), s))
     return np.concatenate(Xs), np.concatenate(ys), np.concatenate(gs), ch_names
