@@ -1,6 +1,17 @@
 # ANSWERS — EEG × Deep Learning live exam
 
-*Task 3 follow-up checks and two wording fixes added after the timed session (commits `11574e9`, `7713ee1`).*
+*Sections marked "Follow-up" were added after the timed session (commits `11574e9`, `7713ee1`, `a3eaf0e`); every number from the timed session is unchanged.*
+
+### Part 1 at a glance
+
+- **Six bugs found and fixed, one commit each.** Accuracy went from 0.667 (inflated) to 0.522 on the fixed test split, and
+  0.566 with 5-fold subject-level cross-validation (3 seeds).
+- **ERD matches motor anatomy for hands** (C3/C4 mu ERD). The foot effect at Cz is weak because the foot area is deep on the
+  mesial wall.
+- **The remaining 0.566 is an eye-movement shortcut.** 8 frontal channels alone score 0.617. That signal sits in the first
+  second after the cue and below 8 Hz, and it disappears with 8–30 Hz / 1–4 s ("EOG-free").
+- **Follow-up: without the shortcut**, motor imagery is decodable within subjects (CSP 0.711 on motor channels; EEGNet 0.553).
+  Across subjects it is only suggestive (best 0.633, not significant after correction).
 
 All numbers below come from `part1_diagnose/results.jsonl` (one row per run, labelled by `tag`) or from a quoted command
 output. Training is deterministic on CPU: re-running seed 0 reproduced the untouched number exactly (0.667, best epoch 17).
@@ -9,7 +20,8 @@ output. Training is deterministic on CPU: re-running seed 0 reproduced the untou
 
 ## Part 1 — Task 1: the six defects
 
-Line numbers refer to the untouched starter (`git show starter:part1_diagnose/<file>`).
+Line numbers refer to the untouched starter code (`git show 86e1619:part1_diagnose/<file>`). Bugs are listed in the order
+they were fixed.
 
 | ID | File:line | What was wrong | Effect on the printed accuracy | Fix commit |
 |---|---|---|---|---|
@@ -71,8 +83,7 @@ evoked response separate the classes. Task 3 tests this.
 
 Settings: subjects 1–10, imagined runs, pre-cue baseline −1.5…−0.5 s.
 
-Mean ERD% over 1–4 s, averaged over subjects. These numbers are printed by a scratch script that uses `erd.py`'s own
-functions.
+Mean ERD% over 1–4 s, averaged over subjects (reproduced by `erd_plus.py`, saved in `erd_plus_summary.json`).
 
 | band | condition | C3 | Cz | C4 |
 |---|---|---|---|---|
@@ -81,7 +92,13 @@ functions.
 | beta 13–30 | hands | −6.6 | −6.0 | −5.0 |
 | beta 13–30 | feet | −2.8 | −6.4 | −7.1 |
 
-**Answer.**
+**Short answer.** Hand imagery gives a clear mu ERD over the lateral hand areas (C3 −12.6 %, C4 −7.8 %) and little at Cz
+(−3.1 %), which matches the hand representation on the lateral motor strip. Foot imagery leaves C3 almost unchanged (−0.4 %)
+and gives only a slightly larger ERD at Cz than hands do (−4.6 % vs −3.1 %), so the contrast is carried mainly by whether
+the hand area desynchronises. Cz is weaker than expected because the foot area lies deep on the mesial wall with partly
+tangential sources, so little of its activity reaches the scalp; a Laplacian check (below) supports this.
+
+**Details.**
 - **Hands:** mu ERD that starts about 0.5 s after the cue and is clearly strongest over the lateral hand areas: C3 −12.6 %
   (8/10 subjects negative) and C4 −7.8 %, with only −3.1 % at Cz. This matches the hand representation on the lateral
   convexity of the motor cortex.
@@ -151,6 +168,13 @@ Evidence plot `part1_diagnose/frontal_eog.png` (`eog_probe.py`, Fp1/Fp2 mean, 1�
 
 ### Answer
 
+**Short answer.** The 8 electrodes nearest the eyes decode fists vs feet better than all 64 channels (0.617 vs 0.566 across
+subjects), so the model can solve the task without motor cortex. That information sits entirely in the first second after
+the cue and below 8 Hz, and its polarity flips with class in 10/10 subjects (positive when the target is at the top). That is
+the signature of a vertical eye movement (EOG) towards the cue, plus visual evoked activity. With the eye signal removed,
+EEGNet falls to chance across subjects, so the pipeline's cross-subject accuracy came from the cue, not from motor imagery.
+
+**Details.**
 - **Which rule row applies:** the first one. The 8 electrodes nearest the eyes decode hands vs feet *better* than all
   64 channels (0.617 vs 0.566, above chance in 3/3 seeds).
 - **Where that information sits:** entirely in the first second after the cue and below 8 Hz. Dropping 0–1 s
@@ -217,7 +241,7 @@ the rows in `results.jsonl` (tags `a1_*`, `a2_*`, `a3_*`, `c3_*`).
 
 ---
 
-## Part 1 — "Defend it" crib
+## Part 1 — Bug evidence at a glance
 
 | Bug | How I showed it was wrong | Which way it moved accuracy |
 |---|---|---|
@@ -229,12 +253,10 @@ the rows in `results.jsonl` (tags `a1_*`, `a2_*`, `a3_*`, `c3_*`).
 | F, trials dropped at run end | `drop_log`: 3 trials per subject (`BAD boundary` ×2, `TOO_SHORT`); run 124.99 s, last cue 120.40 s, so +5 s overruns; epoching on 0–4 s keeps 45/45 | ~None (within noise): 0.548 → 0.522, n_test 84 → 90 |
 
 **What this still doesn't rule out:**
-- Even the fully fixed pipeline's above-chance accuracy (CV 0.566) is explained by cue-locked, low-frequency activity:
-  8 frontal channels alone get 0.617, and both frontal and motor fall to chance at 8–30 Hz.
-- A trustworthy *evaluation* is not the same as a model that uses *motor imagery*.
-- Follow-up: with the eye signal removed, motor imagery decodes **within** subjects (CSP motor 0.711, 7/10) but not
-  reliably **across** them (best 0.633, Holm p = 0.12). Frontal still decodes within subjects (0.571), so residual
-  non-motor information is not fully ruled out.
+- A trustworthy *evaluation* is not the same as a model that uses *motor imagery*: the fixed pipeline's 0.566 comes from the
+  eye-movement shortcut (Task 3).
+- Without the shortcut, motor imagery decodes within subjects but not reliably across them, and frontal channels still carry
+  some within-subject information (Task 3 follow-up).
 - The fixed {9, 10} test split (90 trials, 0.522, p = 0.38) is too small to read a single number from; use the CV numbers.
 
 ---
