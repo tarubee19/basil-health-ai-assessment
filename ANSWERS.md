@@ -1,7 +1,14 @@
 # ANSWERS — EEG × Deep Learning live exam
 
+> **Note on commit timestamps:** several commits share the same timestamp because they were
+> committed in one batch after a long uninterrupted work block rather than individually in real time.
+
 ### Part 1 at a glance
 
+- **A trustworthy evaluation is not the same as a model that uses motor imagery.** The fixed pipeline's 0.566
+  cross-subject accuracy comes from an eye-movement shortcut (Task 3), not from brain signal — and in Part 2,
+  no attention-based inductive bias could fix that, because the real bottleneck is the shift between people,
+  not the attention axis.
 - **Six bugs found and fixed, one commit each.** Accuracy went from 0.667 (inflated) to 0.522 on the fixed test split, and
   0.566 with 5-fold subject-level cross-validation (3 seeds).
 - **ERD matches motor anatomy for hands** (C3/C4 mu ERD). The foot effect at Cz is weak because the foot area is deep on the
@@ -49,31 +56,10 @@ cross-validation option `--split cv` (`df36684`, a feature, not a bug fix).
 | CV seed 2 | `df36684` | all, 2 per fold | 0.573 ± 0.062 (pooled 0.573) | 0.582 | 450 |
 | **final, CV 3 seeds** | `df36684` | all | **pooled 0.566 ± 0.023 across seeds** | | 450 |
 
-**Is it above chance?** One-sided binomial test vs 0.5 (`scipy.stats.binomtest`):
-- Fixed split {9, 10}: 47/90 = 0.522, p = 0.376. **Not above chance**; 54/90 = 0.600 would be needed.
-- CV, pooled over all 450 trials (every subject tested once): seed 0 263/450 = 0.584, p = 0.0002; seed 1 243/450 = 0.540,
-  p = 0.049; seed 2 258/450 = 0.573, p = 0.001. That is **weakly but reliably above chance**; 243/450 = 0.540 is needed.
-- Why the two disagree: subjects 9 and 10 are the two hardest in CV (mean per-subject accuracy over seeds 0.43 and 0.50; the
-  best is subject 7 at 0.68). Two test people and 90 trials (SE ≈ 5 points) are too few to read a single number. The fold sd
-  (0.06–0.07) shows how much the choice of test people matters.
-
-**Notes on the path:**
-- Most of the inflation came from A + B + D: 0.667 → 0.548 on the fixed split.
-- C changed nothing at seed 0, which is expected for a small scale leak.
-- F moved 0.548 → 0.522, the "wrong" way for a fix that adds data, but by 2.6 points on 90 trials, well inside noise.
-- With B fixed, the val-selected and last-epoch numbers no longer agree perfectly. That is the honest situation: on ~90 test
-  trials, they differ by noise.
-
-**Why the final number can be trusted:**
-- every test person is unseen in training and in model selection;
-- the checkpoint is chosen on separate validation people;
-- normalisation uses training-subject statistics only;
-- the data are the imagined runs the brief describes;
-- no trials are silently lost.
-
-**What it still doesn't rule out:** the classifier may be reading a non-brain signal that is locked to the class. The fists
-target appears at the top of the screen and the feet target at the bottom, so vertical eye movements (EOG) and the visual
-evoked response separate the classes. Task 3 tests this.
+Most of the inflation came from fixes A + B + D (0.667 → 0.548). The final number can be trusted: every test person is
+unseen in training and model selection, the checkpoint is chosen on validation subjects, and normalisation uses
+training-subject statistics only. One caveat remains: the classifier may be reading a non-brain signal (the fists target
+appears at the top of the screen and the feet target at the bottom, creating an eye-movement shortcut). Task 3 tests this.
 
 ---
 
@@ -90,35 +76,11 @@ Mean ERD% over 1–4 s, averaged over subjects (reproduced by `erd_plus.py`, sav
 | beta 13–30 | hands | −6.6 | −6.0 | −5.0 |
 | beta 13–30 | feet | −2.8 | −6.4 | −7.1 |
 
-**Short answer.** Hand imagery gives a clear mu ERD over the lateral hand areas (C3 −12.6 %, C4 −7.8 %) and little at Cz
-(−3.1 %), which matches the hand representation on the lateral motor strip. Foot imagery leaves C3 almost unchanged (−0.4 %)
-and gives only a slightly larger ERD at Cz than hands do (−4.6 % vs −3.1 %), so the contrast is carried mainly by whether
-the hand area desynchronises. Cz is weaker than expected because the foot area lies deep on the mesial wall with partly
-tangential sources, so little of its activity reaches the scalp; a Laplacian check (below) supports this.
-
-**Details.**
-- **Hands:** mu ERD that starts about 0.5 s after the cue and is clearly strongest over the lateral hand areas: C3 −12.6 %
-  (8/10 subjects negative) and C4 −7.8 %, with only −3.1 % at Cz. This matches the hand representation on the lateral
-  convexity of the motor cortex.
-- **Feet:** almost no ERD over the hand areas (C3 −0.4 %, with short ERS bursts). The ERD at Cz is only marginally larger
-  than for hands (−4.6 % vs −3.1 %; 7/10 subjects negative). So the hands-vs-feet contrast is carried mainly by *where the
-  hand area desynchronises*, not by a strong foot ERD at the vertex.
-- **Why Cz is weaker than expected:**
-  - the foot area lies on the mesial wall, deep inside the interhemispheric fissure;
-  - its sources are partly tangential, and the two feet's fields partly cancel, so little reaches the scalp at Cz;
-  - the reference is unknown and there is no spatial filter (Laplacian/CSP), so Cz is blurred by its neighbours;
-  - averaging subjects with different mu peak frequencies flattens the curves further.
-  Beta was not clearer for feet here (Cz −6.4 % feet vs −6.0 % hands).
-- *Laplacian check (`erd_plus.py`, `erd_plus_mu.png`):* a small Laplacian makes feet mu ERD at Cz weaker, not sharper (−4.6 % →
-  +2.8 %, 7/10 → 4/10 subjects negative). So the "blurred by its neighbours" bullet is not supported, and the deep, mesial,
-  tangential source is the better explanation: a Laplacian favours superficial radial sources.
-
-**What else the plots show:**
-- **Cue response, not motor:** a sharp +50 to +85 % mu power peak at about 0.25 s at all three channels and for both
-  classes. This is cue-locked evoked activity (visual/eye), which is exactly why the old 0–0.5 s baseline was wrong.
-- **Beta rebound:** after the trial ends (4–5 s, task offset at 4.1 s) for hands: C3 +9.6 %, C4 +11.8 %.
-- **Baseline sanity check:** the pre-cue window fluctuates ±10–20 % around 0 with no trend; this level of noise comes from
-  ~225 trials per condition.
+Hand imagery gives a clear mu ERD over the lateral hand areas (C3 −12.6 %, C4 −7.8 %) with little at Cz (−3.1 %),
+matching the hand representation on the lateral motor strip. Foot imagery leaves C3 almost unchanged (−0.4 %) and gives
+only a marginally larger ERD at Cz than hands do (−4.6 % vs −3.1 %), so the contrast is carried mainly by whether the hand
+area desynchronises. Cz is weaker than expected because the foot area lies deep on the mesial wall with partly tangential
+sources; a Laplacian check (`erd_plus.py`) confirms this — it makes feet mu ERD at Cz weaker, not sharper (−4.6 % → +2.8 %).
 
 ---
 
@@ -166,25 +128,11 @@ Evidence plot `part1_diagnose/frontal_eog.png` (`eog_probe.py`, Fp1/Fp2 mean, 1�
 
 ### Answer
 
-**Short answer.** The 8 electrodes nearest the eyes decode fists vs feet better than all 64 channels (0.617 vs 0.566 across
-subjects), so the model can solve the task without motor cortex. That information sits entirely in the first second after
-the cue and below 8 Hz, and its polarity flips with class in 10/10 subjects (positive when the target is at the top). That is
-the signature of a vertical eye movement (EOG) towards the cue, plus visual evoked activity. With the eye signal removed,
-EEGNet falls to chance across subjects, so the pipeline's cross-subject accuracy came from the cue, not from motor imagery.
-
-**Details.**
-- **Which rule row applies:** the first one. The 8 electrodes nearest the eyes decode hands vs feet *better* than all
-  64 channels (0.617 vs 0.566, above chance in 3/3 seeds).
-- **Where that information sits:** entirely in the first second after the cue and below 8 Hz. Dropping 0–1 s
-  (0.517) or keeping only 8–30 Hz (0.483) puts frontal back at chance.
-- **Which non-brain signal explains it:** that time course and band are the signature of a **vertical eye movement (EOG)**
-  towards the target. The fists target is at the top and the feet target at the bottom, so the polarity flips with class
-  and matches the corneo-retinal dipole: looking up brings the positive cornea towards Fp1/Fp2. Blinks and frontalis EMG
-  also contribute.
-- **The worrying part:** the motor-strip control does not rescue a "brain" reading. Motor channels reach 0.607 at
-  1–40 Hz, but **0.514 (chance) when restricted to the mu/beta band** where the Task 2 ERD lives. So cross-subject, the
-  model's above-chance accuracy is explained by slow, cue-locked activity: EOG spreading back over the scalp (visible at
-  C3/Cz/C4 in the raw traces) and/or visual evoked potentials, not by motor-imagery ERD.
+The 8 electrodes nearest the eyes decode fists vs feet better than all 64 channels (0.617 vs 0.566 across subjects),
+so the model can solve the task without motor cortex. That information sits entirely in the first second after the cue
+and below 8 Hz — the signature of a vertical eye movement (EOG) towards the target, whose polarity flips with class in
+10/10 subjects. Motor channels reach 0.607 at 1–40 Hz but 0.514 (chance) when restricted to the mu/beta band, so
+cross-subject the pipeline's accuracy came from the cue, not from motor-imagery ERD.
 
 ### Is there a brain signal without the eye shortcut?
 
@@ -264,6 +212,10 @@ the rows in `results.jsonl` (tags `a1_*`, `a2_*`, `a3_*`, `c3_*`).
 Code: `part2_transformer/main.py` (`YourModel`). Numbers: `part2_transformer/results.jsonl`. Full write-up:
 `part2_transformer/README.md`. Reproduce: `cd part2_transformer && python -u main.py --epochs 20 --seeds 0 1 2`.
 
+> **Reproducibility note:** reported Part 2 numbers use `python main.py --epochs 20 --seeds 0 1 2`; the script's
+> own `--epochs` default is still 40 (the starter's original value), so running `python main.py` with no flags
+> will not reproduce these exact numbers.
+
 ### Part 2 at a glance
 
 - **The bet:** attend across 64 **electrode tokens** (log band-power, placed by 3-D scalp geometry) instead of 481
@@ -278,33 +230,31 @@ Code: `part2_transformer/main.py` (`YourModel`). Numbers: `part2_transformer/res
 
 ### 1. Hypothesis (committed in `07411fc`, before the model code in `0c465b7`)
 
-> Fists-vs-feet is encoded in *where* mu/beta power drops (lateral hand areas vs the medial vertex, an
-> anterior–posterior/medial contrast), not in *when* individual samples occur; per-timestep attention compares
-> random-phase amplitudes it can't generalise from 8 subjects, so attending across 64 electrode tokens that carry log
-> band-power and know their 3-D scalp position should beat the vanilla transformer with lower seed variance, and its
-> attention should concentrate on central (FC/C/CP, Cz) rather than frontal electrodes.
+> Fists-vs-feet is encoded in *where* mu/beta power drops (lateral hand areas vs the medial vertex), not in *when*
+> individual samples occur. Attending across 64 electrode tokens that carry log band-power and know their 3-D scalp
+> position should beat the vanilla transformer with lower seed variance, and its attention should concentrate on
+> central (FC/C/CP, Cz) rather than frontal electrodes.
 
 **The one bias:** move attention from the time axis to the space axis (electrode tokens), with each token located by
 scalp geometry.
 
 ### 2. What I changed and why
 
-- **The weakness:** per-timestep attention has no locality prior and compares single samples whose phase is random
-  across trials. MI ERD is induced, not phase-locked, so on 8 subjects there is little to generalise.
-- **Tokens:** each electrode is one token. A shared temporal filter bank (16 × 0.4 s kernels) is applied, squared,
-  averaged over 0.5 s windows and logged. That gives log band-power, which is phase-invariant like ERD itself.
-- **Attention axis:** attention runs across the 64 electrodes, because the task contrast is spatial and
-  anterior–posterior/medial (hand areas vs foot area near Cz), so a left/right prior would not help.
-- **Position:** an MLP on standardised xyz gives each token its scalp location.
-- **Cost:** the attention matrix shrinks from 482² = 232,324 to 65² = 4,225 entries per head (≈ 55×).
-- **Ablation:** `shuffled` gives the same xyz values to the wrong electrodes; `learned` replaces geometry with a learned
-  per-electrode embedding.
+Each electrode becomes one token: a shared temporal filter bank (16 × 0.4 s kernels) is applied, squared, averaged
+over 0.5 s windows and logged, yielding phase-invariant log band-power. Attention runs across the 64 electrodes
+(not 481 timesteps), shrinking the attention matrix from 232,324 to 4,225 entries per head (≈ 55×). An MLP on
+standardised xyz gives each token its scalp location; ablations: `shuffled` assigns xyz to the wrong electrodes,
+`learned` replaces geometry with a learned per-electrode embedding.
+
+> **Note on scope:** YourModel combines three changes — log band-power tokenization, electrode-as-token attention
+> axis, and geometric positional encoding. The electrode/space-vs-time attention axis is the actual bet being tested;
+> band-power tokenization and the geometric PE are scaffolding needed to make that axis meaningful, not separate
+> hypotheses.
 
 ### 3. What happened
 
-Final-epoch test accuracy on subjects 9–10 (n = 90), seeds 0/1/2, **20 epochs for every model**
-(the starter default is 40). The harness's "best" is the max over the test curve, i.e. selected on test (Part 1's bug B), so
-final is the headline and peak is shown alongside. Chance is 0.5; p < .05 needs 0.600 (54/90); SE is 5.3 pts.
+Final-epoch test accuracy on subjects 9–10 (n = 90), seeds 0/1/2, 20 epochs. Chance is 0.5; p < .05 needs 0.600;
+SE is 5.3 pts.
 
 | Model | params | final, seed 0 / 1 / 2 | best | worst | mean ± std | peak mean |
 |---|---|---|---|---|---|---|
