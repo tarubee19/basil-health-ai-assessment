@@ -228,9 +228,10 @@ def save_figure(rows, attn, pos, names, thr, path):
         ax[0].hlines(f.mean(), i - 0.25, i + 0.25, color=col, lw=2, zorder=3)
     ax[0].axhline(0.5, color=muted, lw=1, ls="-")
     ax[0].axhline(thr, color=muted, lw=1, ls="--")
-    ax[0].text(len(models) - 0.5, 0.5, "chance", va="bottom", ha="right", color=muted, fontsize=8)
-    ax[0].text(len(models) - 0.5, thr, f"p<.05 ({thr:.0%}, n=90)", va="bottom", ha="right",
+    ax[0].text(-0.45, 0.5, "chance", va="bottom", ha="left", color=muted, fontsize=8)
+    ax[0].text(-0.45, thr, f"p<.05 ({thr:.0%}, n=90)", va="bottom", ha="left",
                color=muted, fontsize=8)
+    ax[0].set_xlim(-0.5, len(models) - 0.5)
     ax[0].set_xticks(range(len(models)))
     ax[0].set_xticklabels([m.replace(" (", "\n(") for m in models], fontsize=7.5)
     ax[0].set_ylabel("final-epoch test accuracy (subj 9-10)")
@@ -247,9 +248,9 @@ def save_figure(rows, attn, pos, names, thr, path):
                                      names=names, sensors=False)
         for t in ax[1 + j].texts:
             t.set_fontsize(5)
-        ax[1 + j].set_title(f"({'bc'[j]}) CLS→electrode attention, {lab}\n"
-                            f"YourModel geom seed 0, last layer, mean heads+trials",
-                            fontsize=9, loc="left")
+        ax[1 + j].set_title(f"({'bc'[j]}) CLS→electrode attention: {lab}", fontsize=10, loc="left")
+    fig.text(0.70, 0.02, "YourModel (geom), seed 0, last layer, mean over heads and test trials",
+             ha="center", fontsize=8, color=muted)
     cb = fig.colorbar(im, ax=ax[1:], shrink=0.7, pad=0.02)
     cb.set_label("attention weight (uniform = 1/64 = 0.0156)", fontsize=8)
     fig.savefig(path, dpi=150, bbox_inches="tight")
@@ -274,7 +275,7 @@ def save_tsne(model, Xte, yte, device, path):
     for c, name in [(0, "fists"), (1, "feet")]:
         m = yte == c
         plt.scatter(emb2[m, 0], emb2[m, 1], s=18, alpha=0.7, label=name)
-    plt.legend(); plt.title("Test-subject CLS embeddings (YourModel geom, seed 0)")
+    plt.legend(); plt.title("t-SNE, test CLS embeddings\nYourModel (geom), seed 0", fontsize=10)
     plt.tight_layout(); plt.savefig(path, dpi=130)
     plt.close()
     print(f"  saved {path}")
@@ -291,6 +292,8 @@ def main():
     ap.add_argument("--only", nargs="+", default=None,
                     help="run only these rows (eegnet eegnet_p1 vanilla patch yours ablation)")
     ap.add_argument("--log", default=os.path.join(HERE, "results.jsonl"))
+    ap.add_argument("--figure-only", action="store_true",
+                    help="redraw the figures from --log; retrains only YourModel seed 0 (not logged)")
     args = ap.parse_args()
 
     device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -306,6 +309,22 @@ def main():
     thr = chance_threshold(len(yte))
     print(f"chance: 0.5; one-sided binomial p<.05 needs >= {thr:.3f} on n={len(yte)}; "
           f"SE at 0.5 = {math.sqrt(0.25 / len(yte)):.3f}")
+
+    if args.figure_only:
+        with open(args.log) as f:
+            rows = [json.loads(l) for l in f if l.strip()]
+        rows = [r for r in rows if r["epochs"] == args.epochs]
+        s = args.seeds[0]
+        set_seed(s)
+        m = YourModel(C, T, pos=pos, pe=args.pe)
+        peak, final = train_model(m, Xtr, ytr, Xte, yte, epochs=args.epochs, device=device)
+        print(f"  [YourModel ({args.pe})] seed {s}: final {final:.3f}  peak {peak:.3f}  "
+              f"(retrained for the figure; compare with results.jsonl)")
+        attn, names = cls_attention(m, Xte, yte, device), channel_names()
+        save_figure(rows, attn, pos, names, thr, os.path.join(HERE, "figure.png"))
+        save_tsne(m, Xte, yte, device, os.path.join(HERE, "figure_tsne.png"))
+        summarise(rows)
+        return
 
     # Ordered cheap-and-ours first, slowest (vanilla, ~482-token attention) last, so
     # results land early; every run is appended to results.jsonl as it finishes.
