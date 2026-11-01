@@ -1,4 +1,4 @@
-"""Task 3 follow-up: classical baselines on the same folds as train.py.
+"""Task 3: classical baselines on the same folds as train.py.
 
 Pipelines: csp = CSP(6, ledoit_wolf, log) + LDA;  ts = Covariances(oas) -> TangentSpace -> LogisticRegression.
 Alignment (TRANSDUCTIVE, uses unlabelled test-subject trials): ea = Euclidean alignment per subject;
