@@ -1,0 +1,4 @@
+scratch_checks.py
+*.log
+logs_*.txt
+__pycache__/
