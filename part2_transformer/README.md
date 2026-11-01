@@ -107,23 +107,31 @@ Reproduce with `python -u main.py --epochs 20 --seeds 0 1 2`; every run is appen
 | YourModel (learned) | 78,786 | 0,1,2 | 0.433 / 0.556 / 0.533 | 0.556 | 0.433 | 0.507 ± 0.053 | 0.552 |
 | EEGNet (supplied) | 2,610 | 0,1,2 | 0.522 / 0.589 / 0.467 | 0.589 | 0.467 | 0.526 ± 0.050 | 0.541 |
 | PatchTransformer | 232,898 | 0,1,2 | 0.511 / 0.489 / 0.511 | 0.511 | 0.489 | 0.504 ± 0.010 | 0.593 |
+| VanillaTransformer | 135,746 | 0,1,2 | 0.533 / 0.522 / 0.533 | 0.533 | 0.522 | 0.530 ± 0.005 | 0.552 |
+| EEGNet-P1 (k80,p.5) | 2,738 | 0,1,2 | 0.533 / 0.411 / 0.467 | 0.533 | 0.411 | 0.470 ± 0.050 | 0.537 |
 <!-- /table -->
 
-**Missing runs:** **VanillaTransformer, seeds 0/1/2: none finished**, and **EEGNet-P1 (Part 1 config `kern=80, p=0.5`):
-not run**. The reason is CPU contention with the concurrent Part 1 job. The patch model went from ~10 s to 143–427 s per
-seed, and vanilla (≈ 20 s/epoch on a free CPU) was stopped at the time limit before its first seed ended. So this table
-has no vanilla row: the "beat the vanilla transformer" half of the hypothesis is **untested**. Reproduce the missing rows
-with `python -u main.py --epochs 20 --only vanilla eegnet_p1`.
+**Run provenance:** VanillaTransformer and EEGNet-P1 (the Part 1 config, `kern=80, p=0.5`, set via constructor
+arguments; `models.py` unchanged) were run after the time limit with `--only vanilla` and `--only eegnet_p1`: same
+harness, seeds and 20 epochs. Vanilla took 310–1073 s per seed because the CPU was shared with Part 1.
+**Reproducibility:** `--figure-only` retrained YourModel (geom) seed 0 twice; both runs gave final 0.478 and peak 0.567,
+identical to `results.jsonl`, because CPU training is deterministic here.
 
 **Reading:**
-- **No conclusive win.** YourModel (geom) has the highest mean final accuracy (0.574) and is the only model with seeds at
-  or above the p < .05 line of 0.600 (seed 1 0.644, seed 2 0.600). But its seed 0 is at chance (0.478), and its mean is
-  4.8 pts above EEGNet's (0.526): inside one SE (5.3 pts) of a 90-trial test. EEGNet here is at chance, consistent with
-  Part 1 (0.522 on the same subjects 9–10).
-- **Seed variance did not drop.** geom std 0.070 vs EEGNet 0.050. "Stability" was part of the hypothesis and is not
-  supported.
-- **Patch model:** the lowest seed variance (std 0.010) but at chance (mean 0.504). It also has the largest peak-vs-final
-  gap (8.9 pts), so its test curve fluctuates during training even though it ends at chance.
+- **Nothing is conclusively above chance on average.** Only YourModel (geom) has seeds at or above the p < .05 line
+  (seed 1 0.644, seed 2 0.600), and it has the highest mean (0.574). But its seed 0 is at chance (0.478), and its mean is
+  only 4.4 pts above vanilla (0.530) and 4.8 above EEGNet (0.526), inside one SE (5.3 pts) of a 90-trial test.
+- **Vanilla vs ours:**
+  - The vanilla transformer sits at chance in all 3 seeds (0.522–0.533), with almost no spread (std 0.005).
+  - So "beat the vanilla transformer" is at most a trend, and "with lower seed variance" is **contradicted**: geom's std
+    is 0.070, 14× vanilla's.
+  - Vanilla's flat ~0.53 looks more like a model that has not learned anything that transfers to new people than like a
+    noisy one. I did not log training accuracy, so I can't say whether it overfits or underfits.
+- **Both EEGNets are at chance on this pipeline** (supplied 0.526, Part 1 config 0.470). That is consistent with Part 1:
+  on subjects 9–10 EEGNet scored 0.522, and in the 8–30 Hz band even motor channels fell to chance. Part 2's loader
+  filters to 7–30 Hz, which removes the low-frequency eye signal Part 1 found EEGNet exploiting.
+- **Low variance is not the same as learning.** The patch model (std 0.010) and vanilla (0.005) are the most stable rows
+  and both sit at chance. The patch model also has the largest peak-vs-final gap (8.9 pts).
 - **Peak flatters every model** (by 1.5–8.9 pts on the means), which is why final is the headline.
 
 **Figure:** `figure.png`: (a) final accuracy per seed for every model; (b, c) the geom seed-0 model's last-layer
@@ -140,8 +148,9 @@ temporal-muscle activity (EMG) dominate, not the motor strip. This is the Part 1
 - **Geometry ablation:** scrambling which electrode gets which xyz (`shuffled`, mean final 0.474) or replacing geometry
   with a learned per-electrode embedding (`learned`, 0.507) scored below `geom` (0.574). Gaps of 7–10 pts on 3 seeds and
   one 90-trial test set are suggestive, not shown, and neither ablation is above chance.
-- **Seed variance is not lower:** geom final ranges 0.478–0.644. Only 2 test subjects (both among the hardest in Part 1's
-  CV) and 90 trials make any single number noisy (SE 5.3 pts).
+- **Seed variance is not lower:** geom final ranges 0.478–0.644, the widest spread of any row.
+- **Small test set:** only 2 test subjects (both among the hardest in Part 1's CV) and 90 trials make any single number
+  noisy (SE 5.3 pts). 3 seeds each.
 - **Next:**
   - rotate the held-out pair (subject-level CV, as in Part 1);
   - Euclidean alignment per subject, for the cross-subject covariance shift;
