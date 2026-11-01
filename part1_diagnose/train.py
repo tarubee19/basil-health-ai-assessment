@@ -108,9 +108,9 @@ def run_split(X, y, groups, tr_subj, va_subj, te_subj, args):
                 test_acc_per_subject=per_subject)
 
 
-def log(result):
+def log(result, out="results.jsonl"):
     print(json.dumps(result))
-    with open("results.jsonl", "a") as f:
+    with open(out, "a") as f:
         f.write(json.dumps(result) + "\n")
 
 
@@ -130,6 +130,7 @@ def main():
     ap.add_argument("--test-subjects", type=int, nargs="+", default=[9, 10])
     ap.add_argument("--val-subjects", type=int, nargs="+", default=[7, 8])
     ap.add_argument("--tag", default="", help="label stored in results.jsonl")
+    ap.add_argument("--out", default="results.jsonl", help="results file to append to")
     args = ap.parse_args()
     set_seed(args.seed)
 
@@ -145,7 +146,7 @@ def main():
     all_subj = set(np.unique(groups).tolist())
     if args.split == "fixed":
         te_subj, va_subj = set(args.test_subjects), set(args.val_subjects)
-        log(run_split(X, y, groups, all_subj - te_subj - va_subj, va_subj, te_subj, args))
+        log(run_split(X, y, groups, all_subj - te_subj - va_subj, va_subj, te_subj, args), args.out)
         return
 
     # Subject-level CV: each fold tests 2 subjects; the next fold's test subjects
@@ -157,14 +158,14 @@ def main():
         va_subj = folds[(k + 1) % len(folds)]
         row = run_split(X, y, groups, all_subj - te_subj - va_subj, va_subj, te_subj, args)
         row["fold"] = k
-        log(row); rows.append(row)
+        log(row, args.out); rows.append(row)
     accs = np.array([r["test_acc"] for r in rows])
     n = np.array([r["n_test"] for r in rows])
     log(dict(tag=args.tag, channels=args.channels, crop=args.crop, fband=args.fband,
              seed=args.seed, split="cv",
              fold_test_acc=accs.tolist(), test_acc_mean=accs.mean(), test_acc_sd=accs.std(ddof=1),
              test_acc_pooled=float((accs * n).sum() / n.sum()), n_test=int(n.sum()),
-             test_acc_last_mean=float(np.mean([r["test_acc_last"] for r in rows]))))
+             test_acc_last_mean=float(np.mean([r["test_acc_last"] for r in rows]))), args.out)
 
 
 if __name__ == "__main__":
