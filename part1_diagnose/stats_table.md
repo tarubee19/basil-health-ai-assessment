@@ -1,4 +1,4 @@
-# Subject-level statistics (Task 3 follow-up)
+# Subject-level statistics (Task 3)
 
 Holm: Wilcoxon p corrected over the 25 EOG-free (8-30 Hz, 1-4 s) cross-subject configs in this table; blank = not in that family.
 
