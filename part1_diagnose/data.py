@@ -44,9 +44,11 @@ def epoch_subject(subject):
     raw = load_raw(subject)
     raw.filter(L_FREQ, H_FREQ, fir_design="firwin", verbose="error")
     events = get_events(raw)
-    epochs = mne.Epochs(raw, events, EVENT_ID, TMIN, TMAX, baseline=None,
+    # Epoch directly on CROP: the wider TMIN/TMAX window (needed only for ERD) runs
+    # past the end of each 125 s run and silently drops its last trial.
+    epochs = mne.Epochs(raw, events, EVENT_ID, *CROP, baseline=None,
                         preload=True, verbose="error")
-    X = epochs.copy().crop(*CROP).get_data(copy=True) * 1e6
+    X = epochs.get_data(copy=True) * 1e6
     y = epochs.events[:, 2] - 1
     return X.astype(np.float32), y.astype(np.int64), epochs.ch_names
 
