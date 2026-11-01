@@ -134,33 +134,6 @@ and below 8 Hz — the signature of a vertical eye movement (EOG) towards the ta
 10/10 subjects. Motor channels reach 0.607 at 1–40 Hz but 0.514 (chance) when restricted to the mu/beta band, so
 cross-subject the pipeline's accuracy came from the cue, not from motor-imagery ERD.
 
-### Is there a brain signal without the eye shortcut?
-
-Setting: "EOG-free" = 8–30 Hz **and** crop 1–4 s; same subject folds as `--split cv`. Statistics are per subject (n = 10):
-mean, one-sided Wilcoxon p vs 0.5, and the number of subjects above 0.5. Classical baselines are in `classical.py`
-(CSP+LDA, tangent space + logistic regression), statistics in `stats.py` (`stats_table.md`, `accuracy_grid.png`), and
-the rows in `results.jsonl` (tags `a1_*`, `a2_*`, `a3_*`, `c3_*`).
-
-| EOG-free | CSP+LDA | TS+LR | EEGNet (seeds 0–2) |
-|---|---|---|---|
-| within-subject, motor | **0.711** (p = 0.018, 7/10) | 0.711 (p = 0.026, 7/10) | 0.553 (p = 0.19, 5/10) |
-| within-subject, all 64 | 0.749 (p = 0.003, 9/10) | 0.744 (p = 0.001, 10/10) | 0.542 (p = 0.10, 6/10) |
-| within-subject, frontal | 0.571 (p = 0.030, 7/10) | 0.527 (p = 0.33) | – |
-| cross-subject, motor | 0.573 (p = 0.24, 5/10) | 0.553 (p = 0.09, 7/10) | 0.511 (p = 0.40) |
-| cross-subject, all 64 | 0.547 (p = 0.27) | 0.600 (p = 0.014, 7/10); with re-centering 0.633 (p = 0.005, 9/10) | 0.513 (p = 0.31) |
-| cross-subject, frontal | 0.504 (p = 0.61) | 0.476 (p = 0.99) | – |
-
-- **Within subjects, a motor-imagery signal is decodable without the eye shortcut:** CSP motor 0.711 vs EEGNet 0.553.
-  CSP and TS each beat EEGNet in 9/10 subjects (sign test p = 0.021, all channels).
-- **Across subjects, transfer is suggestive only.** The best result is TS with per-subject re-centering (RPA), all channels:
-  0.633, 9/10 subjects. RPA uses the test subject's unlabelled trials. Its p does not survive Holm correction over the
-  25 EOG-free cross-subject configs tried (Holm p = 0.12).
-- **Frontal channels** are at chance cross-subject but still give 0.571 within-subject. So the motor result is "mostly
-  sensorimotor": some non-motor information may survive the filter.
-- **Conclusion.** The eye signal was the shortcut behind the pipeline's cross-subject accuracy. Motor-imagery ERD is real and
-  decodable within subjects, where simple covariance models reach ~0.71. EEGNet is data-hungry and does not learn it from
-  ~36 training trials per subject (within) or 6 training people (across).
-
 ---
 
 ## Part 1 — Task 4: short answers
