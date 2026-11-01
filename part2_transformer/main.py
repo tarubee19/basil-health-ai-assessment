@@ -1,7 +1,7 @@
 """
 EEG Transformer Sprint — entry point.
 Run:  python -u main.py --epochs 20 --seeds 0 1 2   # what the reported numbers come from
-      (default --epochs is the starter's 40; 20 was used under the exam time limit)
+      (default --epochs is the starter's 40; the reported numbers use 20)
 
 This script:
   1. loads the cross-subject split (train subjects 1-8, test 9-10),
