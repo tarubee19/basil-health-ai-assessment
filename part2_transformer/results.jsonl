@@ -16,3 +16,6 @@
 {"model": "VanillaTransformer", "pe": "-", "seed": 0, "final_acc": 0.5333, "peak_acc": 0.5333, "params": 135746, "epochs": 20}
 {"model": "VanillaTransformer", "pe": "-", "seed": 1, "final_acc": 0.5222, "peak_acc": 0.5333, "params": 135746, "epochs": 20}
 {"model": "VanillaTransformer", "pe": "-", "seed": 2, "final_acc": 0.5333, "peak_acc": 0.5889, "params": 135746, "epochs": 20}
+{"model": "EEGNet-P1 (k80,p.5)", "pe": "-", "seed": 0, "final_acc": 0.5333, "peak_acc": 0.5333, "params": 2738, "epochs": 20}
+{"model": "EEGNet-P1 (k80,p.5)", "pe": "-", "seed": 1, "final_acc": 0.4111, "peak_acc": 0.5111, "params": 2738, "epochs": 20}
+{"model": "EEGNet-P1 (k80,p.5)", "pe": "-", "seed": 2, "final_acc": 0.4667, "peak_acc": 0.5667, "params": 2738, "epochs": 20}
