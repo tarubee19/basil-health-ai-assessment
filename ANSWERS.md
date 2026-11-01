@@ -146,9 +146,8 @@ cross-subject the pipeline's accuracy came from the cue, not from motor-imagery 
      between trials.
 2. **The depthwise layer `Conv2d(F1, F1*D, (n_ch, 1), groups=F1)`:** each of the F1 temporal filters is
    frequency-selective. For each one, the layer learns D **spatial filters**, which are weightings across all electrodes,
-   applied with no mixing between bands. It works like a per-band CSP or beamformer: it learns which electrodes to add or
-   subtract to expose a source's band-power pattern, for example contrasting C3/C4 against Cz for mu ERD, or, as Task 3
-   shows, contrasting Fp electrodes to pick up a vertical EOG dipole.
+   applied with no mixing between bands. It learns which electrodes to combine to expose a band-power pattern — for
+   example, contrasting C3/C4 against Cz to pick up mu ERD differences between hands and feet.
 3. **One change that would stop the model using the eye signal:**
    - **Experiment:** make the cue identical in location for both classes, for example a central symbol or an auditory cue,
      so gaze no longer depends on the class. Alternatives:
@@ -156,7 +155,6 @@ cross-subject the pipeline's accuracy came from the cue, not from motor-imagery 
      - use a delayed cue and analyse only after the cue has disappeared.
    - **Analysis:** drop the first ~1 s after the cue **and** band-pass to 8–30 Hz, and/or remove ocular components (ICA or
      regression on Fp channels).
-   - Task 3 showed each of these alone already removes the frontal shortcut (frontal → 0.517 and 0.483).
 
 ---
 
