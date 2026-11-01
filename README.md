@@ -24,8 +24,11 @@ The full write-up, with every number, is in **[ANSWERS.md](ANSWERS.md)**.
 **Part 2**
 - **The bet:** attend across 64 **electrode tokens** (log band-power, located by 3-D scalp geometry) instead of 481
   timesteps. The attention matrix shrinks from 482² to 65².
-- **Result:** no conclusive win over EEGNet or the vanilla transformer. Best and worst runs across seeds, the ablations, and
-  what failed are reported in ANSWERS.md.
+- **Exam day (subjects 9–10):** no conclusive win over EEGNet or the vanilla transformer. Best and worst runs across
+  seeds, the ablations, and what failed are reported in ANSWERS.md.
+- **Follow-up, all 10 subjects rotated:** every neural model is at chance, real scalp geometry is no better than shuffled,
+  and removing attention changes nothing. The exam-day lead was noise from one test split. Only covariance re-centering
+  (TS+RPA) gets above chance.
 
 ## Reproduce
 
