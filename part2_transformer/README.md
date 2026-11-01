@@ -65,7 +65,14 @@ lucky spike you can't explain.
 
 ## Your write-up (fill this in)
 
-**Hypothesis:**
+**Hypothesis:** Fists-vs-feet is encoded in *where* mu/beta power drops (lateral hand areas vs the medial vertex, an
+anterior–posterior/medial contrast), not in *when* individual samples occur; per-timestep attention compares random-phase
+amplitudes it can't generalise from 8 subjects, so attending across 64 electrode tokens that carry log band-power and
+know their 3-D scalp position should beat the vanilla transformer with lower seed variance, and its attention should
+concentrate on central (FC/C/CP, Cz) rather than frontal electrodes.
+
+*The one bias:* change the attention axis from time to space (electrode tokens), with tokens located by scalp geometry.
+The geometry part is tested by an ablation (shuffled / learned position) so we can say whether it matters.
 
 **What I changed and why:**
 
