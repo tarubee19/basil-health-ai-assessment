@@ -1,57 +1,67 @@
-# EEG × Deep Learning — Live Exam (3 hours)
+# EEG × Deep Learning: live exam submission
 
-Two parts, 90 minutes each, with a 5-minute break between them. Read the
-problem-statement PDF for the full brief; this file is the map.
+Motor-imagery decoding (imagined **both fists vs both feet**) on PhysioNet EEGBCI, subjects 1–10, 64 channels, 160 Hz.
+The full write-up, with every number, is in **[ANSWERS.md](ANSWERS.md)**.
 
-```
-part1_diagnose/     Part 1 — a buggy motor-imagery pipeline you must fix and interpret
-part2_transformer/  Part 2 — give self-attention a fair shot on tiny EEG data
-```
+| Part | Question | Folder |
+|---|---|---|
+| **1. Diagnose & Trust** | The starter pipeline runs cleanly but prints a wrong accuracy. Find the bugs, read the ERD, and work out what the model really uses. | [`part1_diagnose/`](part1_diagnose) |
+| **2. Build & Defend** | Can self-attention beat a conv net on tiny EEG data if we give it one EEG-specific inductive bias? | [`part2_transformer/`](part2_transformer) |
 
-## Before the clock starts
+## Main findings
 
-Set up the environment once (conda covers both parts):
+**Part 1**
+- **Six defects fixed, one commit each:** trial-level split, test-set checkpoint selection, normalisation leak, executed
+  instead of imagined runs, post-cue ERD baseline, and trials dropped at run ends. Accuracy fell from 0.667 (inflated) to
+  0.522 on the fixed split, and 0.566 with 5-fold subject-level cross-validation.
+- **ERD:** hand imagery desynchronises mu over C3/C4. The foot effect at Cz is weak, which fits the deep mesial foot area.
+- **The model was using the cue:** the fists target is at the top of the screen and the feet target at the bottom. 8 frontal
+  electrodes alone (0.617) beat all 64 (0.566). The signal sits in the first second and below 8 Hz, and its polarity flips
+  with class in 10/10 subjects: a vertical eye movement (EOG).
+- **Follow-up, without the eye signal (8–30 Hz, 1–4 s):** motor imagery is decodable within subjects (CSP 0.711 on motor
+  channels vs EEGNet 0.553). Across subjects it is only suggestive.
+
+**Part 2**
+- **The bet:** attend across 64 **electrode tokens** (log band-power, located by 3-D scalp geometry) instead of 481
+  timesteps. The attention matrix shrinks from 482² to 65².
+- **Result:** no conclusive win over EEGNet or the vanilla transformer. Best and worst runs across seeds, the ablations, and
+  what failed are reported in ANSWERS.md.
+
+## Reproduce
 
 ```bash
-conda env create -f environment.yml
-conda activate eeg-dl-exam
+pip install -r part1_diagnose/requirements.txt    # or: conda env create -f environment.yml
+
+cd part1_diagnose
+python train.py                                   # fixed pipeline, seed 0 -> 0.522
+python train.py --split cv --seed 0               # 5-fold subject-level CV
+python train.py --split cv --channels frontal     # Task 3: frontal-only
+python erd.py --band mu                           # Task 2 -> erd_mu.png
+python classical.py --help                        # follow-up: CSP / tangent-space baselines
+python stats.py --plot                            # follow-up: subject-level statistics -> stats_table.md, accuracy_grid.png
+
+cd ../part2_transformer
+python -u main.py --epochs 20 --seeds 0 1 2       # reported numbers use 20 epochs (default is 40)
 ```
 
-Or use pip per part (each folder has its own `requirements.txt`, they overlap):
+The data (~80 MB) downloads automatically through MNE on the first run. Everything runs on a laptop CPU, and training is
+deterministic on CPU, so seeds reproduce exactly.
 
-```bash
-pip install -r part1_diagnose/requirements.txt
+## Repository map
+
+```
+ANSWERS.md                  write-up for both parts
+part1_diagnose/
+  data.py, erd.py, train.py, model.py   fixed pipeline (each fix commented "# FIX (A)" ... "# FIX (F)")
+  eog_probe.py                          frontal EOG evidence -> frontal_eog.png
+  classical.py, align.py, stats.py      follow-up baselines and statistics
+  erd_plus.py                           follow-up ERD (Laplacian, topomaps)
+  results.jsonl                         one row per run, labelled by tag
+  erd_mu.png, erd_beta.png, frontal_eog.png, accuracy_grid.png, erd_plus_*.png, erd_topomaps.png
+part2_transformer/
+  main.py                    YourModel (electrode tokens + scalp geometry) and the comparison harness
+  models.py, data.py, train.py           supplied, unchanged
+  results.jsonl, figure.png, figure_tsne.png
 ```
 
-Then kick off the data download at the start of each part and read code while
-it runs:
-
-```bash
-cd part1_diagnose       && python train.py
-# ...later...
-cd ../part2_transformer && python main.py
-```
-
-Both parts use the PhysioNet EEGBCI dataset (subjects 1–10, 64 channels,
-160 Hz), downloaded and cached automatically by MNE (~80 MB total). CPU is
-enough; each run is 1–2 minutes.
-
-## The arc
-
-- **Part 1 — Diagnose & Trust.** The pipeline runs cleanly but the accuracy it
-  prints is wrong. Find the planted defects, fix them, interpret the ERD, and
-  work out what signal the model is really using. You end with an EEGNet
-  baseline whose number you can *trust*.
-- **Part 2 — Build & Defend.** Carry that trusted baseline forward. Inject one
-  inductive bias into an attention-based decoder and show, honestly, whether it
-  helps — and whether you understand why.
-
-Part 1 tests rigor; Part 2 tests ideas. They're weighted equally. Accuracy is
-not scored — your reasoning is.
-
-## What you hand in
-
-One GitHub repo (commit as you work, one commit per bug fix, no squashing) with
-both parts' code, an `ANSWERS.md`, and the generated artifacts
-(`results.jsonl`, `erd_mu.png`, the Part 2 figure). Then a live code
-walkthrough with Q&A. Details in the PDF.
+The commit history is kept unsquashed: one commit per bug fix, and the Part 2 hypothesis was committed before the model code.
