@@ -1,7 +1,7 @@
 """
 EEG Transformer Sprint — entry point.
-Run:  python main.py               # all models, seeds 0 1 2, figure.png + figure_tsne.png
-      python main.py --ablation    # + YourModel with pe=shuffled / pe=learned
+Run:  python -u main.py --epochs 20 --seeds 0 1 2   # what the reported numbers come from
+      (default --epochs is the starter's 40; 20 was used under the exam time limit)
 
 This script:
   1. loads the cross-subject split (train subjects 1-8, test 9-10),
@@ -286,8 +286,8 @@ def main():
     ap.add_argument("--seeds", type=int, nargs="+", default=[0, 1, 2])
     ap.add_argument("--pe", choices=["geom", "learned", "none", "shuffled"], default="geom",
                     help="positional encoding of YourModel's electrode tokens")
-    ap.add_argument("--ablation", action="store_true",
-                    help="also run YourModel with pe=shuffled and pe=learned")
+    ap.add_argument("--no-ablation", action="store_true",
+                    help="skip YourModel with pe=shuffled and pe=learned")
     ap.add_argument("--only", nargs="+", default=None,
                     help="run only these rows (eegnet eegnet_p1 vanilla patch yours ablation)")
     ap.add_argument("--log", default=os.path.join(HERE, "results.jsonl"))
@@ -307,41 +307,41 @@ def main():
     print(f"chance: 0.5; one-sided binomial p<.05 needs >= {thr:.3f} on n={len(yte)}; "
           f"SE at 0.5 = {math.sqrt(0.25 / len(yte)):.3f}")
 
-    rows_spec = [
-        ("eegnet", "EEGNet (supplied)", "-", lambda: EEGNet(C, T)),
-        ("eegnet_p1", "EEGNet-P1 (k80,p.5)", "-", lambda: EEGNet(C, T, kern=80, p=0.5)),
-        ("vanilla", "VanillaTransformer", "-", lambda: VanillaEEGTransformer(C, T)),
-        ("patch", "PatchTransformer", "-", lambda: PatchTransformer(C, T)),
-        ("yours", f"YourModel ({args.pe})", args.pe,
-         lambda: YourModel(C, T, pos=pos, pe=args.pe)),
-    ]
-    if args.ablation:
+    # Ordered cheap-and-ours first, slowest (vanilla, ~482-token attention) last, so
+    # results land early; every run is appended to results.jsonl as it finishes.
+    rows_spec = [("yours", f"YourModel ({args.pe})", args.pe,
+                  lambda: YourModel(C, T, pos=pos, pe=args.pe))]
+    if not args.no_ablation:
         for pe in ("shuffled", "learned"):
             if pe != args.pe:
                 rows_spec.append(("ablation", f"YourModel ({pe})", pe,
                                   lambda pe=pe: YourModel(C, T, pos=pos, pe=pe)))
+    rows_spec += [
+        ("eegnet", "EEGNet (supplied)", "-", lambda: EEGNet(C, T)),
+        ("patch", "PatchTransformer", "-", lambda: PatchTransformer(C, T)),
+        ("vanilla", "VanillaTransformer", "-", lambda: VanillaEEGTransformer(C, T)),
+        ("eegnet_p1", "EEGNet-P1 (k80,p.5)", "-", lambda: EEGNet(C, T, kern=80, p=0.5)),
+    ]
     if args.only:
         rows_spec = [r for r in rows_spec if r[0] in args.only]
 
-    rows, kept = [], {}
+    rows, attn, names = [], None, None
+    fig_path = os.path.join(HERE, "figure.png")
     for key, name, pe, build in rows_spec:
         print(f"\n=== {name} ===  params: {count_params(build()):,}", flush=True)
         r, m = run_across_seeds(name, pe, build, data, args.seeds, device, args.epochs, args.log)
         rows += r
-        kept[name] = m
+        if key == "yours" and args.pe != "none":
+            # Figure as soon as YourModel is trained (seed-0 model, no retraining).
+            attn, names = cls_attention(m, Xte, yte, device), channel_names()
+            for c, lab in [(0, "fists"), (1, "feet")]:
+                top = np.argsort(attn[c])[::-1][:10]
+                print(f"  top-10 attended ({lab}): "
+                      + ", ".join(f"{names[i]} {attn[c][i]:.3f}" for i in top))
+            save_tsne(m, Xte, yte, device, os.path.join(HERE, "figure_tsne.png"))
+        if attn is not None:                            # panel (a) grows as rows finish
+            save_figure(rows, attn, pos, names, thr, fig_path)
     summarise(rows)
-
-    name = f"YourModel ({args.pe})"
-    if name in kept and args.pe != "none":
-        print("\nsaving figures (YourModel seed-%d model, no retraining)..." % args.seeds[0])
-        attn = cls_attention(kept[name], Xte, yte, device)
-        names = channel_names()
-        for c, lab in [(0, "fists"), (1, "feet")]:
-            top = np.argsort(attn[c])[::-1][:10]
-            print(f"  top-10 attended ({lab}): "
-                  + ", ".join(f"{names[i]} {attn[c][i]:.3f}" for i in top))
-        save_figure(rows, attn, pos, names, thr, os.path.join(HERE, "figure.png"))
-        save_tsne(kept[name], Xte, yte, device, os.path.join(HERE, "figure_tsne.png"))
 
     print("\ndone. Headline = final-epoch accuracy; report best AND worst — no cherry-picking.")
 
