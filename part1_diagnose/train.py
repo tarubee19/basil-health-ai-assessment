@@ -8,6 +8,7 @@ import json
 import numpy as np
 import torch
 import torch.nn as nn
+from sklearn.model_selection import GroupKFold
 
 from data import build_dataset, SUBJECTS
 from model import EEGNet, count_params
@@ -42,33 +43,11 @@ def mean_loss(model, X, y, loss_fn, bs=256):
     return total / len(y)
 
 
-def main():
-    ap = argparse.ArgumentParser()
-    ap.add_argument("--channels", choices=list(CHANNEL_GROUPS), default="all")
-    ap.add_argument("--subjects", type=int, nargs="+", default=SUBJECTS)
-    ap.add_argument("--epochs", type=int, default=30)
-    ap.add_argument("--lr", type=float, default=1e-3)
-    ap.add_argument("--bs", type=int, default=64)
-    ap.add_argument("--seed", type=int, default=0)
-    ap.add_argument("--test-subjects", type=int, nargs="+", default=[9, 10])
-    ap.add_argument("--val-subjects", type=int, nargs="+", default=[7, 8])
-    ap.add_argument("--tag", default="", help="label stored in results.jsonl")
-    args = ap.parse_args()
+def run_split(X, y, groups, tr_subj, va_subj, te_subj, args):
+    """Train on tr_subj, select on va_subj, evaluate once on te_subj. Returns a result row."""
     set_seed(args.seed)
-
-    X, y, groups, ch_names = build_dataset(args.subjects)
-    picks = CHANNEL_GROUPS[args.channels]
-    if picks is not None:
-        if not picks:
-            raise ValueError(f"Fill in CHANNEL_GROUPS['{args.channels}'] first.")
-        X = X[:, [ch_names.index(c) for c in picks]]
-    print(f"data: {X.shape}, subjects={len(np.unique(groups))}, "
-          f"class balance={np.bincount(y)}")
-
     # Subject-independent evaluation: whole subjects are held out for test and
     # validation, so no person appears in more than one set.
-    te_subj, va_subj = set(args.test_subjects), set(args.val_subjects)
-    tr_subj = set(np.unique(groups).tolist()) - te_subj - va_subj
     assert not (tr_subj & te_subj) and not (tr_subj & va_subj) and not (va_subj & te_subj)
     assert tr_subj and va_subj and te_subj
     tr = np.flatnonzero(np.isin(groups, list(tr_subj)))
@@ -113,14 +92,66 @@ def main():
     model.load_state_dict(best_state)
     per_subject = {int(s): evaluate(model, X[te][groups[te] == s], y[te][groups[te] == s])
                    for s in np.unique(groups[te])}
-    result = dict(tag=args.tag, channels=args.channels, seed=args.seed, best_epoch=best_ep,
-                  test_acc=evaluate(model, X[te], y[te]), n_test=len(te),
-                  test_acc_last=test_acc_last,
-                  test_subjects=sorted(int(s) for s in np.unique(groups[te])),
-                  test_acc_per_subject=per_subject)
+    return dict(tag=args.tag, channels=args.channels, seed=args.seed, best_epoch=best_ep,
+                test_acc=evaluate(model, X[te], y[te]), n_test=len(te),
+                test_acc_last=test_acc_last,
+                test_subjects=sorted(int(s) for s in np.unique(groups[te])),
+                test_acc_per_subject=per_subject)
+
+
+def log(result):
     print(json.dumps(result))
     with open("results.jsonl", "a") as f:
         f.write(json.dumps(result) + "\n")
+
+
+def main():
+    ap = argparse.ArgumentParser()
+    ap.add_argument("--channels", choices=list(CHANNEL_GROUPS), default="all")
+    ap.add_argument("--subjects", type=int, nargs="+", default=SUBJECTS)
+    ap.add_argument("--epochs", type=int, default=30)
+    ap.add_argument("--lr", type=float, default=1e-3)
+    ap.add_argument("--bs", type=int, default=64)
+    ap.add_argument("--seed", type=int, default=0)
+    ap.add_argument("--split", choices=["fixed", "cv"], default="fixed",
+                    help="fixed: --test/--val-subjects; cv: 5-fold GroupKFold over subjects")
+    ap.add_argument("--test-subjects", type=int, nargs="+", default=[9, 10])
+    ap.add_argument("--val-subjects", type=int, nargs="+", default=[7, 8])
+    ap.add_argument("--tag", default="", help="label stored in results.jsonl")
+    args = ap.parse_args()
+    set_seed(args.seed)
+
+    X, y, groups, ch_names = build_dataset(args.subjects)
+    picks = CHANNEL_GROUPS[args.channels]
+    if picks is not None:
+        if not picks:
+            raise ValueError(f"Fill in CHANNEL_GROUPS['{args.channels}'] first.")
+        X = X[:, [ch_names.index(c) for c in picks]]
+    print(f"data: {X.shape}, subjects={len(np.unique(groups))}, "
+          f"class balance={np.bincount(y)}")
+
+    all_subj = set(np.unique(groups).tolist())
+    if args.split == "fixed":
+        te_subj, va_subj = set(args.test_subjects), set(args.val_subjects)
+        log(run_split(X, y, groups, all_subj - te_subj - va_subj, va_subj, te_subj, args))
+        return
+
+    # Subject-level CV: each fold tests 2 subjects; the next fold's test subjects
+    # are its validation set, so every subject is test once and validation once.
+    folds = [set(np.unique(groups[te]).tolist())
+             for _, te in GroupKFold(n_splits=5).split(X, y, groups)]
+    rows = []
+    for k, te_subj in enumerate(folds):
+        va_subj = folds[(k + 1) % len(folds)]
+        row = run_split(X, y, groups, all_subj - te_subj - va_subj, va_subj, te_subj, args)
+        row["fold"] = k
+        log(row); rows.append(row)
+    accs = np.array([r["test_acc"] for r in rows])
+    n = np.array([r["n_test"] for r in rows])
+    log(dict(tag=args.tag, channels=args.channels, seed=args.seed, split="cv",
+             fold_test_acc=accs.tolist(), test_acc_mean=accs.mean(), test_acc_sd=accs.std(ddof=1),
+             test_acc_pooled=float((accs * n).sum() / n.sum()), n_test=int(n.sum()),
+             test_acc_last_mean=float(np.mean([r["test_acc_last"] for r in rows]))))
 
 
 if __name__ == "__main__":
