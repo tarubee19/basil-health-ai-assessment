@@ -1,5 +1,5 @@
 """
-Subject-rotated evaluation for every Part 2 model (follow-up to the fixed 9-10 split).
+Subject-rotated evaluation for every Part 2 model (extends the fixed 9-10 split).
 
   python -u cv.py --models eegnet geom --seeds 0 1 2            # appends tagged rows to results.jsonl
   python -u cv.py --models geom eegnet csp --drop rim           # B2: rim electrodes removed
