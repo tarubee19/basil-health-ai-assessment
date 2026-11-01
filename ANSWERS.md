@@ -62,3 +62,40 @@ cross-validation option `--split cv` (`df36684`, a feature, not a bug fix).
 **What it still doesn't rule out:** the classifier may be reading a non-brain signal that is locked to the class. The fists
 target appears at the top of the screen and the feet target at the bottom, so vertical eye movements (EOG) and the visual
 evoked response separate the classes. Task 3 tests this.
+
+---
+
+## Part 1 — Task 2: ERD (`part1_diagnose/erd_mu.png`, plus `erd_beta.png`)
+
+Settings: subjects 1–10, imagined runs, pre-cue baseline −1.5…−0.5 s.
+
+Mean ERD% over 1–4 s, averaged over subjects. These numbers are printed by a scratch script that uses `erd.py`'s own
+functions.
+
+| band | condition | C3 | Cz | C4 |
+|---|---|---|---|---|
+| mu 8–13 | hands | **−12.6** | −3.1 | −7.8 |
+| mu 8–13 | feet | −0.4 | −4.6 | −4.1 |
+| beta 13–30 | hands | −6.6 | −6.0 | −5.0 |
+| beta 13–30 | feet | −2.8 | −6.4 | −7.1 |
+
+**Answer.**
+- **Hands:** mu ERD that starts about 0.5 s after the cue and is clearly strongest over the lateral hand areas: C3 −12.6 %
+  (8/10 subjects negative) and C4 −7.8 %, with only −3.1 % at Cz. This matches the hand representation on the lateral
+  convexity of the motor cortex.
+- **Feet:** almost no ERD over the hand areas (C3 −0.4 %, with short ERS bursts). The ERD at Cz is only marginally larger
+  than for hands (−4.6 % vs −3.1 %; 7/10 subjects negative). So the hands-vs-feet contrast is carried mainly by *where the
+  hand area desynchronises*, not by a strong foot ERD at the vertex.
+- **Why Cz is weaker than expected:**
+  - the foot area lies on the mesial wall, deep inside the interhemispheric fissure;
+  - its sources are partly tangential, and the two feet's fields partly cancel, so little reaches the scalp at Cz;
+  - the reference is unknown and there is no spatial filter (Laplacian/CSP), so Cz is blurred by its neighbours;
+  - averaging subjects with different mu peak frequencies flattens the curves further.
+  Beta was not clearer for feet here (Cz −6.4 % feet vs −6.0 % hands).
+
+**What else the plots show:**
+- **Cue response, not motor:** a sharp +50 to +85 % mu power peak at about 0.25 s at all three channels and for both
+  classes. This is cue-locked evoked activity (visual/eye), which is exactly why the old 0–0.5 s baseline was wrong.
+- **Beta rebound:** after the trial ends (4–5 s, task offset at 4.1 s) for hands: C3 +9.6 %, C4 +11.8 %.
+- **Baseline sanity check:** the pre-cue window fluctuates ±10–20 % around 0 with no trend; this level of noise comes from
+  ~225 trials per condition.
